@@ -52,7 +52,7 @@ const Guide = {
         <div class="flow-diagram">
           <div class="flow-stage flow-stage-intake">
             <div class="flow-stage-label">How Work Gets Created</div>
-            <div class="flow-sources">
+            <div class="flow-sources" style="grid-template-columns:repeat(5,1fr)">
               <div class="flow-node flow-node-source">
                 <div class="flow-node-icon" style="background:#06B6D4">
                   <i data-lucide="inbox"></i>
@@ -96,6 +96,17 @@ const Guide = {
                 </div>
                 <div class="flow-arrow-down"></div>
                 <div class="flow-action">Created by staff</div>
+              </div>
+              <div class="flow-node flow-node-source">
+                <div class="flow-node-icon" style="background:#6366F1">
+                  <i data-lucide="briefcase"></i>
+                </div>
+                <div class="flow-node-text">
+                  <strong>Project Bid</strong>
+                  <span>Awarded bid auto-creates PO</span>
+                </div>
+                <div class="flow-arrow-down"></div>
+                <div class="flow-action">Bid awarded</div>
               </div>
             </div>
           </div>
@@ -180,11 +191,41 @@ const Guide = {
               </div>
             </div>
           </div>
+
+          <div class="flow-connector-main">
+            <div class="flow-connector-line"></div>
+            <div class="flow-connector-label">When vendors are involved...</div>
+          </div>
+
+          <div class="flow-stage">
+            <div class="flow-stage-label">Procurement & Payment Pipeline</div>
+            <div class="flow-complete-steps" style="flex-wrap:wrap;gap:16px">
+              <div class="flow-complete-step">
+                <div class="flow-step-circle" style="background:#14B8A6"><i data-lucide="shopping-cart"></i></div>
+                <span>Purchase Order</span>
+              </div>
+              <div class="flow-complete-arrow"></div>
+              <div class="flow-complete-step">
+                <div class="flow-step-circle" style="background:#8B5CF6"><i data-lucide="receipt"></i></div>
+                <span>Invoice</span>
+              </div>
+              <div class="flow-complete-arrow"></div>
+              <div class="flow-complete-step">
+                <div class="flow-step-circle" style="background:#00C853"><i data-lucide="send"></i></div>
+                <span>Bill.com</span>
+              </div>
+              <div class="flow-complete-arrow"></div>
+              <div class="flow-complete-step">
+                <div class="flow-step-circle" style="background:#2CA01C"><i data-lucide="calculator"></i></div>
+                <span>QuickBooks</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="flow-sidebar-diagram">
           <h3>Supporting Systems</h3>
-          <div class="flow-support-grid">
+          <div class="flow-support-grid" style="grid-template-columns:repeat(3,1fr)">
             <div class="flow-support-card">
               <div class="flow-support-icon" style="background:#8B5CF615;color:#8B5CF6"><i data-lucide="building-2"></i></div>
               <div>
@@ -213,6 +254,20 @@ const Guide = {
                 <span>Groups of staff by specialty. Assign properties and work orders to the right team.</span>
               </div>
             </div>
+            <div class="flow-support-card">
+              <div class="flow-support-icon" style="background:#6366F115;color:#6366F1"><i data-lucide="briefcase"></i></div>
+              <div>
+                <strong>Projects & Bids</strong>
+                <span>For larger jobs, define a scope of work and collect competitive bids. Level bids side by side, award the winner, and a PO is auto-created.</span>
+              </div>
+            </div>
+            <div class="flow-support-card">
+              <div class="flow-support-icon" style="background:#8B5CF615;color:#8B5CF6"><i data-lucide="receipt"></i></div>
+              <div>
+                <strong>Invoices & Payments</strong>
+                <span>After receiving goods, create an invoice from the PO. 3-way match, approve, and send to Bill.com for payment. QuickBooks stays in sync automatically.</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -233,6 +288,20 @@ const Guide = {
           { icon: 'clipboard-check', text: 'Technician follows the attached <strong>Procedure</strong> checklist' },
           { icon: 'package', text: 'Parts used are logged — <strong>inventory auto-deducts</strong>' },
           { icon: 'check', text: 'Work order marked <strong>Completed</strong>, then <strong>Signed Off</strong> by manager' }
+        ]
+      },
+      {
+        title: 'Using the property hub to manage an estate',
+        icon: 'building-2',
+        color: '#8B5CF6',
+        steps: [
+          { icon: 'building-2', text: 'Navigate to <strong>Properties</strong> and click into any property — this is your command center for that estate', link: '#/properties' },
+          { icon: 'layout-dashboard', text: 'The <strong>Overview</strong> tab shows everything at a glance: active work, upcoming PM, recent activity, active projects, and spending' },
+          { icon: 'wrench', text: 'The <strong>Assets</strong> tab shows all equipment and systems with status badges — see what\'s operational, needs repair, or is down' },
+          { icon: 'clipboard-list', text: 'The <strong>Work Orders</strong> tab shows all maintenance tasks with priority and status — spot overdue items instantly' },
+          { icon: 'briefcase', text: 'The <strong>Projects</strong> tab shows active bidding projects — see bid counts, budgets, and award status' },
+          { icon: 'users', text: 'The <strong>Team</strong> tab shows who\'s assigned to this property and how to reach them' },
+          { icon: 'bar-chart-3', text: 'The <strong>stats bar</strong> across the top is your health check: assets, active WOs, PM schedules, projects, parts, and total spend' }
         ]
       },
       {
@@ -287,6 +356,19 @@ const Guide = {
           { icon: 'eye', text: 'Review terms: <strong>warranty, payment terms, timeline, inclusions, and exclusions</strong> — the cheapest bid isn\'t always the best' },
           { icon: 'trophy', text: '<strong>Award</strong> the winning bid — this auto-creates a <strong>Purchase Order</strong> with the bid line items' },
           { icon: 'shopping-cart', text: 'The PO flows through your normal procurement pipeline: <strong>Submit → Approve → Receive → Invoice → Payment</strong>', link: '#/purchaseorders' }
+        ]
+      },
+      {
+        title: 'From bid to vendor payment',
+        icon: 'receipt',
+        color: '#8B5CF6',
+        steps: [
+          { icon: 'briefcase', text: '<strong>Award a bid</strong> on a project — a Purchase Order is auto-created with the bid line items', link: '#/projects' },
+          { icon: 'shopping-cart', text: 'The PO goes through <strong>Submit → Approve → Receive</strong> as goods/services are delivered', link: '#/purchaseorders' },
+          { icon: 'receipt', text: 'Create an <strong>Invoice</strong> from the received PO — the system auto-populates line items and runs a 3-way match', link: '#/invoices' },
+          { icon: 'check-circle', text: '<strong>Approve the invoice</strong> — the 3-way match confirms PO amount, received quantity, and invoice total align' },
+          { icon: 'send', text: 'Send to <strong>Bill.com</strong> for payment — the vendor gets paid via ACH or check' },
+          { icon: 'calculator', text: 'Bill.com syncs with <strong>QuickBooks</strong> automatically — the expense is recorded in your books with the right GL account' }
         ]
       }
     ];
@@ -380,6 +462,10 @@ const Guide = {
         when: 'Ordering parts or services',
         what: 'Formal procurement: Draft → Submit → Approve → Receive. Receiving auto-updates parts inventory.',
         creates: 'Restocks: Parts inventory' },
+      { icon: 'receipt', name: 'Invoices', color: '#8B5CF6', route: '#/invoices',
+        when: 'A vendor needs to be paid',
+        what: 'Create from received POs with automatic 3-way matching. Approve and send to Bill.com for payment. Track payment status through to completion.',
+        creates: 'Sent to: Bill.com. Matched against: Purchase Orders' },
       { icon: 'briefcase', name: 'Projects & Bids', color: '#6366F1', route: '#/projects',
         when: 'Soliciting competitive bids from vendors',
         what: 'Define scope of work, collect vendor bids with category breakdowns, level them side by side, and award the winner. Award auto-creates a Purchase Order.',
@@ -395,7 +481,11 @@ const Guide = {
       { icon: 'bar-chart-3', name: 'Reports', color: '#10B981', route: '#/reports',
         when: 'Analyzing performance',
         what: 'Completion rates, response times, costs, team performance, PM compliance. Export any data as CSV.',
-        creates: 'Uses data from: all modules' }
+        creates: 'Uses data from: all modules' },
+      { icon: 'plug-zap', name: 'Integrations', color: '#10B981', route: '#/integrations',
+        when: 'Connecting to Bill.com or QuickBooks',
+        what: 'Configure OAuth credentials, sync GL accounts from QuickBooks, monitor sync activity, and manage the connection between your systems.',
+        creates: 'Connects: Bill.com (payments), QuickBooks (accounting)' }
     ];
 
     return `

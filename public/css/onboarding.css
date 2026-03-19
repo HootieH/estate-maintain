@@ -2374,3 +2374,203 @@ h1 .tip-badge-icon {
 .bid-item-row:last-child {
   border-bottom: none;
 }
+
+/* ============================================
+   Property Hub
+   ============================================ */
+
+.prop-info-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 12px 0;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.prop-info-bar span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.prop-stats-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 768px) {
+  .prop-stats-row {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.prop-stat {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  text-align: center;
+  transition: all 0.15s;
+}
+
+.prop-stat:hover {
+  border-color: var(--primary-lighter);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+.prop-stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.prop-stat-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.prop-stat-alert {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--danger);
+  margin-top: 4px;
+}
+
+.prop-overview-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .prop-overview-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.prop-pm-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.prop-pm-item:last-child {
+  border-bottom: none;
+}
+
+.prop-pm-item:hover {
+  background: var(--bg);
+  margin: 0 -16px;
+  padding: 10px 16px;
+}
+
+.prop-pm-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.prop-wo-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.prop-wo-item:last-child {
+  border-bottom: none;
+}
+
+.prop-wo-item:hover {
+  background: var(--bg);
+  margin: 0 -16px;
+  padding: 10px 16px;
+}
+
+.prop-wo-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.prop-wo-info strong {
+  font-size: 13px;
+}
+
+.prop-activity-item {
+  display: flex;
+  gap: 10px;
+  padding: 6px 0;
+  align-items: flex-start;
+}
+
+.prop-activity-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  margin-top: 7px;
+  flex-shrink: 0;
+}
+
+.prop-activity-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.prop-team-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+.prop-team-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg);
+  border-radius: 8px;
+}
+
+.prop-team-card strong {
+  display: block;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.prop-team-card .text-muted {
+  display: block;
+  font-size: 12px;
+}
+
+.user-avatar-sm {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
