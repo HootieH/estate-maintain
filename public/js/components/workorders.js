@@ -1,21 +1,33 @@
 const WorkOrders = {
   currentFilters: { status: 'all', priority: 'all', property: 'all', search: '' },
+  _currentPage: 1,
+  _pagination: null,
 
-  async list() {
+  async list(page) {
+    this._currentPage = page || 1;
     const container = document.getElementById('main-content');
     container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading work orders...</p></div>';
 
     try {
+      // Build query params with filters and pagination
+      const params = new URLSearchParams({ page: this._currentPage, limit: 25 });
+      const f = this.currentFilters;
+      if (f.status !== 'all') params.set('status', f.status);
+      if (f.priority !== 'all') params.set('priority', f.priority);
+      if (f.property !== 'all') params.set('property_id', f.property);
+      if (f.search) params.set('search', f.search);
+
       const [woData, propData] = await Promise.all([
-        API.get('/workorders'),
+        API.get(`/workorders?${params.toString()}`),
         API.get('/properties').catch(() => [])
       ]);
-      const workorders = Array.isArray(woData) ? woData : (woData.data || woData.workorders || []);
+      const { items: workorders, pagination } = Pagination.extract(woData, 'workorders');
+      this._pagination = pagination;
       const properties = Array.isArray(propData) ? propData : (propData.data || propData.properties || []);
 
       container.innerHTML = `
         <div class="page-header">
-          <h1>Work Orders</h1>
+          <h1>Work Orders <span class="tip-trigger" data-tip="work-order"><i data-lucide="help-circle" class="tip-badge-icon"></i></span></h1>
           <button class="btn btn-primary" onclick="Router.navigate('#/workorders/new')">
             <i data-lucide="plus"></i> New Work Order
           </button>
@@ -62,10 +74,42 @@ const WorkOrders = {
               </tbody>
             </table>
             <div id="wo-empty" class="empty-state" style="display:none">
-              <i data-lucide="clipboard-list" class="empty-icon"></i>
-              <h2>No Work Orders</h2>
-              <p>No work orders match your filters.</p>
+              <div class="empty-state-icon">
+                <i data-lucide="clipboard-list"></i>
+              </div>
+              <h2>No Work Orders Yet</h2>
+              <p class="empty-state-desc">Work orders are the heart of your maintenance operation. Track repairs, inspections, and tasks from creation to completion.</p>
+              <div class="empty-state-features">
+                <div class="empty-state-feature">
+                  <i data-lucide="target"></i>
+                  <div>
+                    <strong>Assign & Track</strong>
+                    <span>Assign to team members with priority levels and due dates</span>
+                  </div>
+                </div>
+                <div class="empty-state-feature">
+                  <i data-lucide="clock"></i>
+                  <div>
+                    <strong>Time Logging</strong>
+                    <span>Track hours spent on each task for accurate cost reporting</span>
+                  </div>
+                </div>
+                <div class="empty-state-feature">
+                  <i data-lucide="message-circle"></i>
+                  <div>
+                    <strong>Collaboration</strong>
+                    <span>Add comments and updates for real-time team communication</span>
+                  </div>
+                </div>
+              </div>
+              <div class="empty-state-connections">
+                <span class="empty-state-conn"><i data-lucide="link"></i> Linked to Properties, Assets, and Teams</span>
+              </div>
+              <button class="btn btn-primary" onclick="Router.navigate('#/workorders/new')">
+                <i data-lucide="plus"></i> Create Your First Work Order
+              </button>
             </div>
+            ${Pagination.render(pagination, 'WorkOrders')}
           </div>
         </div>
       `;
@@ -78,21 +122,26 @@ const WorkOrders = {
     }
   },
 
+  goToPage(page) {
+    if (page < 1 || (this._pagination && page > this._pagination.totalPages)) return;
+    this.list(page);
+  },
+
   filterStatus(el, status) {
     el.parentElement.querySelectorAll('.status-tab').forEach(t => t.classList.remove('active'));
     el.classList.add('active');
     this.currentFilters.status = status;
-    this.applyFilters();
+    this.list(1);
   },
 
   filterPriority(val) {
     this.currentFilters.priority = val;
-    this.applyFilters();
+    this.list(1);
   },
 
   filterProperty(val) {
     this.currentFilters.property = val;
-    this.applyFilters();
+    this.list(1);
   },
 
   filterSearch(val) {
@@ -137,11 +186,8 @@ const WorkOrders = {
     container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
     try {
-      const [wo, comments] = await Promise.all([
-        API.get(`/workorders/${params.id}`),
-        API.get(`/workorders/${params.id}/comments`).catch(() => [])
-      ]);
-      const commentList = Array.isArray(comments) ? comments : (comments.data || comments.comments || []);
+      const wo = await API.get(`/workorders/${params.id}`);
+      const commentList = wo.comments || [];
 
       container.innerHTML = `
         <div class="page-header">
@@ -216,6 +262,32 @@ const WorkOrders = {
           </div>
         </div>
 
+        <div id="wo-procedures-section"></div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Time Logs</h3>
+            <button class="btn btn-primary btn-sm" onclick="WorkOrders.showLogTimeModal('${params.id}')">
+              <i data-lucide="clock"></i> Log Time
+            </button>
+          </div>
+          <div class="card-body" id="wo-time-logs">
+            <div class="loading"><div class="spinner"></div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Messages</h3>
+            <a href="#/messages/work_order/wo_${params.id}" class="btn btn-primary btn-sm">
+              <i data-lucide="message-circle"></i> Open Thread
+            </a>
+          </div>
+          <div class="card-body">
+            <p class="text-muted" style="font-size:0.875rem">Discuss this work order with your team in a dedicated message thread.</p>
+          </div>
+        </div>
+
         <div class="card">
           <div class="card-header"><h3>Comments</h3></div>
           <div class="card-body">
@@ -228,7 +300,7 @@ const WorkOrders = {
                       <strong>${c.user_name || 'Unknown'}</strong>
                       <span class="text-muted">${Dashboard.formatDate(c.created_at)}</span>
                     </div>
-                    <p>${c.text || c.content || ''}</p>
+                    <p>${c.comment || c.text || c.content || ''}</p>
                   </div>
                 </div>
               `).join('')}
@@ -243,6 +315,15 @@ const WorkOrders = {
         </div>
       `;
       lucide.createIcons();
+
+      // Load time logs
+      WorkOrders.loadTimeLogs(params.id);
+
+      // Load attached procedures
+      const procContainer = document.getElementById('wo-procedures-section');
+      if (procContainer && typeof Procedures !== 'undefined') {
+        Procedures.renderWorkOrderProcedures(params.id, procContainer);
+      }
     } catch (e) {
       container.innerHTML = `<div class="error-state"><p>${e.message}</p></div>`;
     }
@@ -550,12 +631,93 @@ const WorkOrders = {
     if (!text.trim()) return;
 
     try {
-      await API.post(`/workorders/${id}/comments`, { text });
+      await API.post(`/workorders/${id}/comments`, { comment: text });
       document.getElementById('comment-text').value = '';
       App.toast('Comment added', 'success');
       WorkOrders.detail({ id });
     } catch (err) {
       App.toast(err.message, 'error');
+    }
+  },
+
+  async loadTimeLogs(woId) {
+    const container = document.getElementById('wo-time-logs');
+    if (!container) return;
+
+    try {
+      const data = await API.get(`/time-logs/work-order/${woId}`);
+      const logs = data.logs || [];
+      const totalHours = data.total_hours || 0;
+
+      container.innerHTML = `
+        <div class="time-log-summary">
+          <strong>Total: ${totalHours}h logged</strong>
+        </div>
+        ${logs.length === 0 ? '<div class="empty-state-sm">No time logged yet</div>' : `
+          <table class="table">
+            <thead>
+              <tr><th>User</th><th>Hours</th><th>Description</th><th>Date</th></tr>
+            </thead>
+            <tbody>
+              ${logs.map(l => `
+                <tr>
+                  <td>${l.user_name}</td>
+                  <td><strong>${l.hours}h</strong></td>
+                  <td>${l.description || '-'}</td>
+                  <td>${Dashboard.formatDate(l.logged_at)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `}
+      `;
+    } catch (e) {
+      container.innerHTML = '<div class="empty-state-sm">Failed to load time logs</div>';
+    }
+  },
+
+  showLogTimeModal(woId) {
+    const overlay = document.getElementById('modal-overlay');
+    overlay.style.display = 'flex';
+    overlay.querySelector('.modal-title').textContent = 'Log Time';
+    overlay.querySelector('.modal-body').innerHTML = `
+      <form id="log-time-form" onsubmit="WorkOrders.submitTimeLog(event, '${woId}')">
+        <div class="form-group">
+          <label for="tl-hours">Hours *</label>
+          <input type="number" id="tl-hours" class="form-control" step="0.25" min="0.25" required placeholder="e.g. 1.5">
+        </div>
+        <div class="form-group">
+          <label for="tl-description">Description</label>
+          <textarea id="tl-description" class="form-control" rows="3" placeholder="What was done..."></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="tl-submit">Log Time</button>
+        </div>
+      </form>
+    `;
+    overlay.querySelector('.modal-footer').innerHTML = '';
+    lucide.createIcons();
+  },
+
+  async submitTimeLog(e, woId) {
+    e.preventDefault();
+    const btn = document.getElementById('tl-submit');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    try {
+      const hours = parseFloat(document.getElementById('tl-hours').value);
+      const description = document.getElementById('tl-description').value;
+      await API.post('/time-logs', { work_order_id: parseInt(woId), hours, description });
+      App.closeModal();
+      App.toast('Time logged', 'success');
+      WorkOrders.loadTimeLogs(woId);
+    } catch (err) {
+      App.toast(err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Log Time';
     }
   },
 

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Estate Maintain</title>
   <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/onboarding.css">
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
@@ -25,6 +26,11 @@
             <i data-lucide="clipboard-list"></i>
             <span>Work Orders</span>
           </a>
+          <a href="#/requests" class="nav-item" data-route="requests">
+            <i data-lucide="inbox"></i>
+            <span>Work Requests</span>
+            <span class="nav-badge" id="requests-pending-badge" style="display:none"></span>
+          </a>
           <a href="#/properties" class="nav-item" data-route="properties">
             <i data-lucide="building-2"></i>
             <span>Properties</span>
@@ -37,13 +43,34 @@
             <i data-lucide="calendar-clock"></i>
             <span>Preventive Maintenance</span>
           </a>
+          <a href="#/procedures" class="nav-item" data-route="procedures">
+            <i data-lucide="clipboard-check"></i>
+            <span>Procedures</span>
+          </a>
           <a href="#/parts" class="nav-item" data-route="parts">
             <i data-lucide="package"></i>
             <span>Parts & Inventory</span>
           </a>
+          <a href="#/vendors" class="nav-item" data-route="vendors">
+            <i data-lucide="truck"></i>
+            <span>Vendors</span>
+          </a>
+          <a href="#/purchaseorders" class="nav-item" data-route="purchaseorders">
+            <i data-lucide="shopping-cart"></i>
+            <span>Purchase Orders</span>
+          </a>
+          <a href="#/messages" class="nav-item" data-route="messages">
+            <i data-lucide="message-circle"></i>
+            <span>Messages</span>
+            <span class="nav-badge" id="messages-unread-badge" style="display:none"></span>
+          </a>
           <a href="#/teams" class="nav-item" data-route="teams">
             <i data-lucide="users"></i>
             <span>Teams</span>
+          </a>
+          <a href="#/reports" class="nav-item" data-route="reports">
+            <i data-lucide="bar-chart-3"></i>
+            <span>Reports</span>
           </a>
           <a href="#/settings" class="nav-item" data-route="settings">
             <i data-lucide="settings"></i>
@@ -68,6 +95,19 @@
           </button>
           <div id="breadcrumb"></div>
           <div class="topbar-actions">
+            <div class="notification-bell-wrapper">
+              <button class="btn-icon" id="notification-bell" onclick="Notifications.toggle()" title="Notifications">
+                <i data-lucide="bell"></i>
+                <span class="notification-badge" id="notification-badge" style="display:none">0</span>
+              </button>
+              <div class="notification-panel" id="notification-panel" style="display:none">
+                <div class="notification-panel-header">
+                  <h3>Notifications</h3>
+                  <button class="btn btn-sm btn-secondary" onclick="Notifications.markAllRead()">Mark all read</button>
+                </div>
+                <div class="notification-panel-body" id="notification-list"></div>
+              </div>
+            </div>
             <button class="btn btn-primary btn-sm" onclick="Router.navigate('#/workorders/new')">
               <i data-lucide="plus"></i> New Work Order
             </button>
@@ -77,6 +117,7 @@
       </div>
     </div>
   </div>
+  <div id="onboarding-overlay" class="ob-overlay" style="display:none"></div>
   <div id="toast-container"></div>
   <div id="modal-overlay" class="modal-overlay" style="display:none" onclick="App.closeModal(event)">
     <div class="modal" onclick="event.stopPropagation()">
@@ -91,6 +132,7 @@
 
   <script src="/js/api.js"></script>
   <script src="/js/router.js"></script>
+  <script src="/js/pagination.js"></script>
   <script src="/js/components/login.js"></script>
   <script src="/js/components/dashboard.js"></script>
   <script src="/js/components/properties.js"></script>
@@ -100,6 +142,16 @@
   <script src="/js/components/parts.js"></script>
   <script src="/js/components/teams.js"></script>
   <script src="/js/components/settings.js"></script>
+  <script src="/js/components/procedures.js"></script>
+  <script src="/js/components/reports.js"></script>
+  <script src="/js/components/messages.js"></script>
+  <script src="/js/components/requests.js"></script>
+  <script src="/js/components/vendors.js"></script>
+  <script src="/js/components/purchaseorders.js"></script>
+  <script src="/js/components/tooltips.js"></script>
+  <script src="/js/components/onboarding.js"></script>
+  <script src="/js/notifications.js"></script>
   <script src="/js/app.js"></script>
+  <script>document.addEventListener('DOMContentLoaded', () => Tooltips.init());</script>
 </body>
 </html>

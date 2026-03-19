@@ -1,19 +1,28 @@
 const Assets = {
-  async list() {
+  _currentPage: 1,
+  _pagination: null,
+
+  async list(page) {
+    this._currentPage = page || 1;
     const container = document.getElementById('main-content');
     container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading assets...</p></div>';
 
     try {
+      const params = new URLSearchParams({ page: this._currentPage, limit: 25 });
+      if (this._filterProp && this._filterProp !== 'all') params.set('property_id', this._filterProp);
+      if (this._filterStatus && this._filterStatus !== 'all') params.set('status', this._filterStatus);
+
       const [assetData, propData] = await Promise.all([
-        API.get('/assets'),
+        API.get(`/assets?${params.toString()}`),
         API.get('/properties').catch(() => [])
       ]);
-      const assets = Array.isArray(assetData) ? assetData : (assetData.data || assetData.assets || []);
+      const { items: assets, pagination } = Pagination.extract(assetData, 'assets');
+      this._pagination = pagination;
       const properties = Array.isArray(propData) ? propData : (propData.data || propData.properties || []);
 
       container.innerHTML = `
         <div class="page-header">
-          <h1>Assets</h1>
+          <h1>Assets <span class="tip-trigger" data-tip="asset"><i data-lucide="help-circle" class="tip-badge-icon"></i></span></h1>
           <button class="btn btn-primary" onclick="Router.navigate('#/assets/new')">
             <i data-lucide="plus"></i> Add Asset
           </button>
@@ -54,13 +63,14 @@ const Assets = {
               <h2>No Assets</h2>
               <p>No assets match your filters.</p>
             </div>
+            ${Pagination.render(pagination, 'Assets')}
           </div>
         </div>
       `;
 
       this._assets = assets;
-      this._filterProp = 'all';
-      this._filterStatus = 'all';
+      this._filterProp = this._filterProp || 'all';
+      this._filterStatus = this._filterStatus || 'all';
       this.applyFilters();
       lucide.createIcons();
     } catch (e) {
@@ -68,14 +78,19 @@ const Assets = {
     }
   },
 
+  goToPage(page) {
+    if (page < 1 || (this._pagination && page > this._pagination.totalPages)) return;
+    this.list(page);
+  },
+
   filterByProperty(val) {
     this._filterProp = val;
-    this.applyFilters();
+    this.list(1);
   },
 
   filterByStatus(val) {
     this._filterStatus = val;
-    this.applyFilters();
+    this.list(1);
   },
 
   applyFilters() {
@@ -112,8 +127,23 @@ const Assets = {
 
     try {
       const asset = await API.get(`/assets/${params.id}`);
-      const woData = await API.get(`/assets/${params.id}/workorders`).catch(() => []);
+      const [woData, metersData] = await Promise.all([
+        API.get(`/workorders?asset_id=${params.id}`).catch(() => []),
+        API.get(`/meters?asset_id=${params.id}`).catch(() => [])
+      ]);
       const workorders = Array.isArray(woData) ? woData : (woData.data || woData.workorders || []);
+      const meters = Array.isArray(metersData) ? metersData : [];
+
+      // Build location breadcrumb if asset has a location_id
+      let locationBreadcrumb = '';
+      if (asset.location_id) {
+        try {
+          const loc = await API.get(`/locations/${asset.location_id}`);
+          if (loc && loc.breadcrumb) {
+            locationBreadcrumb = loc.breadcrumb.map(b => b.name).join(' > ');
+          }
+        } catch (e) { /* ignore */ }
+      }
 
       container.innerHTML = `
         <div class="page-header">
@@ -147,6 +177,12 @@ const Assets = {
                   <label>Property</label>
                   <p>${asset.property_name ? `<a href="#/properties/${asset.property_id}">${asset.property_name}</a>` : '-'}</p>
                 </div>
+                ${locationBreadcrumb ? `
+                <div class="detail-field">
+                  <label>Location</label>
+                  <p>${locationBreadcrumb}</p>
+                </div>
+                ` : ''}
                 <div class="detail-field">
                   <label>Make / Model</label>
                   <p>${[asset.make, asset.model].filter(Boolean).join(' / ') || '-'}</p>
@@ -169,6 +205,45 @@ const Assets = {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+            <h3>Meters</h3>
+            <button class="btn btn-primary btn-sm" onclick="Assets.showAddMeterModal('${params.id}')">
+              <i data-lucide="plus"></i> Add Meter
+            </button>
+          </div>
+          <div class="card-body">
+            ${meters.length === 0 ? '<div class="empty-state-sm">No meters for this asset. Add one to track usage.</div>' : `
+              <div id="meters-list">
+                ${meters.map(m => `
+                  <div class="meter-item" style="border:1px solid var(--border-color);border-radius:8px;padding:16px;margin-bottom:12px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                      <div>
+                        <strong>${m.name}</strong>
+                        <span class="text-muted" style="margin-left:8px;">${m.current_reading} ${m.unit}</span>
+                      </div>
+                      <div style="display:flex;gap:8px;">
+                        <button class="btn btn-primary btn-sm" onclick="Assets.showRecordReadingModal('${m.id}', '${m.name}', '${m.unit}')">
+                          Record Reading
+                        </button>
+                        <button class="btn btn-secondary btn-sm" onclick="Assets.toggleReadingHistory('${m.id}')">
+                          <i data-lucide="history"></i> History
+                        </button>
+                        <button class="btn btn-danger btn-sm" onclick="Assets.deleteMeter('${m.id}', '${params.id}')">
+                          <i data-lucide="trash-2"></i>
+                        </button>
+                      </div>
+                    </div>
+                    <div id="meter-history-${m.id}" style="display:none;margin-top:12px;">
+                      <div class="loading"><div class="spinner"></div></div>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            `}
           </div>
         </div>
 
@@ -200,6 +275,175 @@ const Assets = {
       lucide.createIcons();
     } catch (e) {
       container.innerHTML = `<div class="error-state"><p>${e.message}</p></div>`;
+    }
+  },
+
+  showAddMeterModal(assetId) {
+    const overlay = document.getElementById('modal-overlay');
+    overlay.querySelector('.modal-title').textContent = 'Add Meter';
+    overlay.querySelector('.modal-body').innerHTML = `
+      <form id="add-meter-form" onsubmit="Assets.handleAddMeter(event, '${assetId}')">
+        <div class="form-group">
+          <label for="meter-name">Meter Name *</label>
+          <input type="text" id="meter-name" class="form-control" required placeholder="e.g., Run Hours">
+        </div>
+        <div class="form-group">
+          <label for="meter-unit">Unit *</label>
+          <select id="meter-unit" class="form-control" required>
+            <option value="">Select unit...</option>
+            <option value="hours">Hours</option>
+            <option value="miles">Miles</option>
+            <option value="km">Kilometers</option>
+            <option value="cycles">Cycles</option>
+            <option value="gallons">Gallons</option>
+            <option value="liters">Liters</option>
+            <option value="kwh">kWh</option>
+          </select>
+        </div>
+        <div id="meter-form-error" class="form-error" style="display:none"></div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="meter-submit">Add Meter</button>
+        </div>
+      </form>
+    `;
+    overlay.querySelector('.modal-footer').innerHTML = '';
+    overlay.style.display = 'flex';
+    lucide.createIcons();
+  },
+
+  async handleAddMeter(e, assetId) {
+    e.preventDefault();
+    const btn = document.getElementById('meter-submit');
+    const errorEl = document.getElementById('meter-form-error');
+    errorEl.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = 'Adding...';
+
+    try {
+      await API.post('/meters', {
+        asset_id: parseInt(assetId),
+        name: document.getElementById('meter-name').value,
+        unit: document.getElementById('meter-unit').value
+      });
+      App.closeModal();
+      App.toast('Meter added', 'success');
+      Assets.detail({ id: assetId });
+    } catch (err) {
+      errorEl.textContent = err.message;
+      errorEl.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Add Meter';
+    }
+  },
+
+  showRecordReadingModal(meterId, meterName, meterUnit) {
+    const overlay = document.getElementById('modal-overlay');
+    overlay.querySelector('.modal-title').textContent = `Record Reading - ${meterName}`;
+    overlay.querySelector('.modal-body').innerHTML = `
+      <form id="record-reading-form" onsubmit="Assets.handleRecordReading(event, '${meterId}')">
+        <div class="form-group">
+          <label for="reading-value">Value (${meterUnit}) *</label>
+          <input type="number" id="reading-value" class="form-control" required step="any" placeholder="Enter current reading">
+        </div>
+        <div class="form-group">
+          <label for="reading-notes">Notes</label>
+          <textarea id="reading-notes" class="form-control" rows="3" placeholder="Optional notes..."></textarea>
+        </div>
+        <div id="reading-form-error" class="form-error" style="display:none"></div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="reading-submit">Record</button>
+        </div>
+      </form>
+    `;
+    overlay.querySelector('.modal-footer').innerHTML = '';
+    overlay.style.display = 'flex';
+    lucide.createIcons();
+  },
+
+  async handleRecordReading(e, meterId) {
+    e.preventDefault();
+    const btn = document.getElementById('reading-submit');
+    const errorEl = document.getElementById('reading-form-error');
+    errorEl.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = 'Recording...';
+
+    try {
+      const result = await API.post(`/meters/${meterId}/readings`, {
+        value: parseFloat(document.getElementById('reading-value').value),
+        notes: document.getElementById('reading-notes').value || null
+      });
+      App.closeModal();
+      let msg = 'Reading recorded';
+      if (result.triggered && result.triggered.length > 0) {
+        msg += `. Triggered: ${result.triggered.join(', ')}`;
+      }
+      App.toast(msg, 'success');
+      // Refresh the current page
+      const hash = window.location.hash;
+      const match = hash.match(/#\/assets\/(\d+)/);
+      if (match) {
+        Assets.detail({ id: match[1] });
+      }
+    } catch (err) {
+      errorEl.textContent = err.message;
+      errorEl.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Record';
+    }
+  },
+
+  async toggleReadingHistory(meterId) {
+    const el = document.getElementById(`meter-history-${meterId}`);
+    if (!el) return;
+
+    if (el.style.display === 'none') {
+      el.style.display = 'block';
+      el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+      try {
+        const readings = await API.get(`/meters/${meterId}/readings`);
+        const list = Array.isArray(readings) ? readings : [];
+        if (list.length === 0) {
+          el.innerHTML = '<div class="empty-state-sm">No readings recorded yet.</div>';
+        } else {
+          el.innerHTML = `
+            <table class="table table-sm">
+              <thead>
+                <tr><th>Value</th><th>Recorded By</th><th>Date</th><th>Notes</th></tr>
+              </thead>
+              <tbody>
+                ${list.map(r => `
+                  <tr>
+                    <td><strong>${r.value}</strong></td>
+                    <td>${r.recorded_by_name || '-'}</td>
+                    <td>${Dashboard.formatDate(r.recorded_at)}</td>
+                    <td>${r.notes || '-'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+        }
+      } catch (err) {
+        el.innerHTML = `<div class="error-state"><p>${err.message}</p></div>`;
+      }
+    } else {
+      el.style.display = 'none';
+    }
+  },
+
+  async deleteMeter(meterId, assetId) {
+    if (!confirm('Delete this meter and all its readings?')) return;
+    try {
+      await API.delete(`/meters/${meterId}`);
+      App.toast('Meter deleted', 'success');
+      Assets.detail({ id: assetId });
+    } catch (e) {
+      App.toast(e.message, 'error');
     }
   },
 
@@ -247,11 +491,19 @@ const Assets = {
               <div class="form-row">
                 <div class="form-group">
                   <label for="asset-property">Property *</label>
-                  <select id="asset-property" class="form-control" required>
+                  <select id="asset-property" class="form-control" required onchange="Assets.loadLocationsForProperty(this.value)">
                     <option value="">Select property...</option>
                     ${properties.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
                   </select>
                 </div>
+                <div class="form-group">
+                  <label for="asset-location">Location</label>
+                  <select id="asset-location" class="form-control">
+                    <option value="">Select location...</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
                 <div class="form-group">
                   <label for="asset-status">Status</label>
                   <select id="asset-status" class="form-control">
@@ -305,6 +557,46 @@ const Assets = {
     }
   },
 
+  async loadLocationsForProperty(propertyId) {
+    const locationSelect = document.getElementById('asset-location');
+    if (!locationSelect) return;
+    locationSelect.innerHTML = '<option value="">Select location...</option>';
+    if (!propertyId) return;
+
+    try {
+      const locations = await API.get(`/locations?property_id=${propertyId}`);
+      const list = Array.isArray(locations) ? locations : [];
+      // Build indented flat list from hierarchy
+      const sorted = Assets._buildFlatLocationList(list);
+      sorted.forEach(loc => {
+        const indent = '\u00A0\u00A0'.repeat(loc._depth || 0);
+        locationSelect.innerHTML += `<option value="${loc.id}">${indent}${loc.name}</option>`;
+      });
+    } catch (e) { /* ignore */ }
+  },
+
+  _buildFlatLocationList(locations) {
+    const map = {};
+    const roots = [];
+    locations.forEach(loc => { map[loc.id] = { ...loc, _children: [] }; });
+    locations.forEach(loc => {
+      if (loc.parent_location_id && map[loc.parent_location_id]) {
+        map[loc.parent_location_id]._children.push(map[loc.id]);
+      } else {
+        roots.push(map[loc.id]);
+      }
+    });
+    const result = [];
+    function walk(nodes, depth) {
+      nodes.forEach(n => {
+        result.push({ ...n, _depth: depth });
+        walk(n._children, depth + 1);
+      });
+    }
+    walk(roots, 0);
+    return result;
+  },
+
   async handleCreate(e) {
     e.preventDefault();
     const btn = document.getElementById('asset-submit');
@@ -318,6 +610,7 @@ const Assets = {
         name: document.getElementById('asset-name').value,
         category: document.getElementById('asset-category').value || null,
         property_id: document.getElementById('asset-property').value,
+        location_id: document.getElementById('asset-location').value || null,
         status: document.getElementById('asset-status').value,
         make: document.getElementById('asset-make').value || null,
         model: document.getElementById('asset-model').value || null,
@@ -349,6 +642,16 @@ const Assets = {
       ]);
       const properties = Array.isArray(propData) ? propData : (propData.data || propData.properties || []);
 
+      // Load locations for the asset's property
+      let locations = [];
+      if (asset.property_id) {
+        try {
+          const locData = await API.get(`/locations?property_id=${asset.property_id}`);
+          locations = Array.isArray(locData) ? locData : [];
+        } catch (e) { /* ignore */ }
+      }
+      const flatLocations = Assets._buildFlatLocationList(locations);
+
       const categories = ['HVAC', 'Plumbing', 'Electrical', 'Appliance', 'Roofing', 'Landscaping', 'Security', 'Pool', 'Other'];
 
       container.innerHTML = `
@@ -379,11 +682,23 @@ const Assets = {
               <div class="form-row">
                 <div class="form-group">
                   <label for="asset-property">Property *</label>
-                  <select id="asset-property" class="form-control" required>
+                  <select id="asset-property" class="form-control" required onchange="Assets.loadLocationsForProperty(this.value)">
                     <option value="">Select property...</option>
                     ${properties.map(p => `<option value="${p.id}" ${String(asset.property_id) === String(p.id) ? 'selected' : ''}>${p.name}</option>`).join('')}
                   </select>
                 </div>
+                <div class="form-group">
+                  <label for="asset-location">Location</label>
+                  <select id="asset-location" class="form-control">
+                    <option value="">Select location...</option>
+                    ${flatLocations.map(loc => {
+                      const indent = '\u00A0\u00A0'.repeat(loc._depth || 0);
+                      return `<option value="${loc.id}" ${String(asset.location_id) === String(loc.id) ? 'selected' : ''}>${indent}${loc.name}</option>`;
+                    }).join('')}
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
                 <div class="form-group">
                   <label for="asset-status">Status</label>
                   <select id="asset-status" class="form-control">
@@ -450,6 +765,7 @@ const Assets = {
         name: document.getElementById('asset-name').value,
         category: document.getElementById('asset-category').value || null,
         property_id: document.getElementById('asset-property').value,
+        location_id: document.getElementById('asset-location').value || null,
         status: document.getElementById('asset-status').value,
         make: document.getElementById('asset-make').value || null,
         model: document.getElementById('asset-model').value || null,

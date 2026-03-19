@@ -1,15 +1,21 @@
 const Teams = {
-  async list() {
+  _currentPage: 1,
+  _pagination: null,
+
+  async list(page) {
+    this._currentPage = page || 1;
     const container = document.getElementById('main-content');
     container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading teams...</p></div>';
 
     try {
-      const data = await API.get('/teams');
-      const teams = Array.isArray(data) ? data : (data.data || data.teams || []);
+      const params = new URLSearchParams({ page: this._currentPage, limit: 25 });
+      const data = await API.get(`/teams?${params.toString()}`);
+      const { items: teams, pagination } = Pagination.extract(data, 'teams');
+      this._pagination = pagination;
 
       container.innerHTML = `
         <div class="page-header">
-          <h1>Teams</h1>
+          <h1>Teams <span class="tip-trigger" data-tip="team"><i data-lucide="help-circle" class="tip-badge-icon"></i></span></h1>
           <button class="btn btn-primary" onclick="Router.navigate('#/teams/new')">
             <i data-lucide="plus"></i> Create Team
           </button>
@@ -41,12 +47,18 @@ const Teams = {
               </div>
             `).join('')}
           </div>
+          ${Pagination.render(pagination, 'Teams')}
         `}
       `;
       lucide.createIcons();
     } catch (e) {
       container.innerHTML = `<div class="error-state"><p>${e.message}</p></div>`;
     }
+  },
+
+  goToPage(page) {
+    if (page < 1 || (this._pagination && page > this._pagination.totalPages)) return;
+    this.list(page);
   },
 
   async detail(params) {

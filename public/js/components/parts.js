@@ -1,17 +1,24 @@
 const Parts = {
   _showLowOnly: false,
+  _currentPage: 1,
+  _pagination: null,
 
-  async list() {
+  async list(page) {
+    this._currentPage = page || 1;
     const container = document.getElementById('main-content');
     container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading inventory...</p></div>';
 
     try {
-      const data = await API.get('/parts');
-      const parts = Array.isArray(data) ? data : (data.data || data.parts || []);
+      const params = new URLSearchParams({ page: this._currentPage, limit: 25 });
+      if (this._showLowOnly) params.set('low_stock', '1');
+
+      const data = await API.get(`/parts?${params.toString()}`);
+      const { items: parts, pagination } = Pagination.extract(data, 'parts');
+      this._pagination = pagination;
 
       container.innerHTML = `
         <div class="page-header">
-          <h1>Parts & Inventory</h1>
+          <h1>Parts & Inventory <span class="tip-trigger" data-tip="parts"><i data-lucide="help-circle" class="tip-badge-icon"></i></span></h1>
           <button class="btn btn-primary" onclick="Router.navigate('#/parts/new')">
             <i data-lucide="plus"></i> Add Part
           </button>
@@ -30,11 +37,39 @@ const Parts = {
           <div class="card-body no-padding">
             ${parts.length === 0 ? `
               <div class="empty-state">
-                <i data-lucide="package" class="empty-icon"></i>
+                <div class="empty-state-icon">
+                  <i data-lucide="package"></i>
+                </div>
                 <h2>No Parts in Inventory</h2>
-                <p>Start tracking your maintenance parts and supplies.</p>
+                <p class="empty-state-desc">Keep track of spare parts, supplies, and materials across all your properties. Never run out of critical supplies again.</p>
+                <div class="empty-state-features">
+                  <div class="empty-state-feature">
+                    <i data-lucide="alert-triangle"></i>
+                    <div>
+                      <strong>Low Stock Alerts</strong>
+                      <span>Get notified when inventory drops below minimum levels</span>
+                    </div>
+                  </div>
+                  <div class="empty-state-feature">
+                    <i data-lucide="package"></i>
+                    <div>
+                      <strong>Track by Property</strong>
+                      <span>Organize inventory by property for easy management</span>
+                    </div>
+                  </div>
+                  <div class="empty-state-feature">
+                    <i data-lucide="shopping-cart"></i>
+                    <div>
+                      <strong>Purchase Orders</strong>
+                      <span>Create purchase orders to restock from your vendors</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="empty-state-connections">
+                  <span class="empty-state-conn"><i data-lucide="link"></i> Restocked via Purchase Orders from Vendors</span>
+                </div>
                 <button class="btn btn-primary" onclick="Router.navigate('#/parts/new')">
-                  <i data-lucide="plus"></i> Add Part
+                  <i data-lucide="plus"></i> Add Your First Part
                 </button>
               </div>
             ` : `
@@ -53,13 +88,14 @@ const Parts = {
                 </tbody>
               </table>
               <div id="parts-empty" class="empty-state-sm" style="display:none">No parts match your filter</div>
+              ${Pagination.render(pagination, 'Parts')}
             `}
           </div>
         </div>
       `;
 
       this._parts = parts;
-      this._showLowOnly = false;
+      this._showLowOnly = this._showLowOnly || false;
       this.renderRows();
       lucide.createIcons();
     } catch (e) {
@@ -67,9 +103,14 @@ const Parts = {
     }
   },
 
+  goToPage(page) {
+    if (page < 1 || (this._pagination && page > this._pagination.totalPages)) return;
+    this.list(page);
+  },
+
   toggleLowStock(checked) {
     this._showLowOnly = checked;
-    this.renderRows();
+    this.list(1);
   },
 
   renderRows() {
@@ -121,7 +162,7 @@ const Parts = {
   async adjustQty(id, delta) {
     try {
       const reason = delta > 0 ? 'Manual increase' : 'Manual decrease';
-      await API.post(`/parts/${id}/adjust`, { quantity_change: delta, reason });
+      await API.put(`/parts/${id}/adjust`, { adjustment: delta, reason });
       const part = this._parts.find(p => String(p.id) === String(id));
       if (part) part.quantity = (part.quantity || 0) + delta;
       this.renderRows();
@@ -166,7 +207,7 @@ const Parts = {
       return;
     }
     try {
-      await API.post(`/parts/${id}/adjust`, { quantity_change: qty, reason });
+      await API.put(`/parts/${id}/adjust`, { adjustment: qty, reason });
       const part = this._parts.find(p => String(p.id) === String(id));
       if (part) part.quantity = (part.quantity || 0) + qty;
       this.renderRows();

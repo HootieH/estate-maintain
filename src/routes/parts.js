@@ -34,8 +34,25 @@ router.get('/', (req, res) => {
     }
 
     sql += ' ORDER BY pt.name';
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 25;
+    const offset = (page - 1) * limit;
+
+    let countSql = `SELECT COUNT(*) as total FROM parts pt`;
+    if (conditions.length > 0) {
+      countSql += ' WHERE ' + conditions.join(' AND ');
+    }
+    const { total } = db.prepare(countSql).get(...params);
+
+    sql += ` LIMIT ? OFFSET ?`;
+    params.push(limit, offset);
+
     const parts = db.prepare(sql).all(...params);
-    res.json(parts);
+    res.json({
+      data: parts,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
+    });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch parts', details: err.message });
   }

@@ -27,9 +27,26 @@ router.get('/', (req, res) => {
       sql += ' WHERE ' + conditions.join(' AND ');
     }
 
-    sql += ' ORDER BY al.created_at DESC LIMIT 50';
+    sql += ' ORDER BY al.created_at DESC';
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 25;
+    const offset = (page - 1) * limit;
+
+    let countSql = `SELECT COUNT(*) as total FROM activity_log al`;
+    if (conditions.length > 0) {
+      countSql += ' WHERE ' + conditions.join(' AND ');
+    }
+    const { total } = db.prepare(countSql).get(...params);
+
+    sql += ` LIMIT ? OFFSET ?`;
+    params.push(limit, offset);
+
     const activities = db.prepare(sql).all(...params);
-    res.json(activities);
+    res.json({
+      data: activities,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
+    });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch activity log', details: err.message });
   }

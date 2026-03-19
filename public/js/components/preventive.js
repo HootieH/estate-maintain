@@ -1,15 +1,21 @@
 const Preventive = {
-  async list() {
+  _currentPage: 1,
+  _pagination: null,
+
+  async list(page) {
+    this._currentPage = page || 1;
     const container = document.getElementById('main-content');
     container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading schedules...</p></div>';
 
     try {
-      const data = await API.get('/preventive');
-      const schedules = Array.isArray(data) ? data : (data.data || data.schedules || []);
+      const params = new URLSearchParams({ page: this._currentPage, limit: 25 });
+      const data = await API.get(`/preventive?${params.toString()}`);
+      const { items: schedules, pagination } = Pagination.extract(data, 'schedules');
+      this._pagination = pagination;
 
       container.innerHTML = `
         <div class="page-header">
-          <h1>Preventive Maintenance</h1>
+          <h1>Preventive Maintenance <span class="tip-trigger" data-tip="preventive-maintenance"><i data-lucide="help-circle" class="tip-badge-icon"></i></span></h1>
           <button class="btn btn-primary" onclick="Router.navigate('#/preventive/new')">
             <i data-lucide="plus"></i> New Schedule
           </button>
@@ -19,11 +25,39 @@ const Preventive = {
           <div class="card-body no-padding">
             ${schedules.length === 0 ? `
               <div class="empty-state">
-                <i data-lucide="calendar-clock" class="empty-icon"></i>
+                <div class="empty-state-icon">
+                  <i data-lucide="calendar-clock"></i>
+                </div>
                 <h2>No Preventive Maintenance Schedules</h2>
-                <p>Set up recurring maintenance to keep your assets in top shape.</p>
+                <p class="empty-state-desc">Stop reacting to breakdowns — schedule recurring maintenance to catch problems early. The system auto-creates work orders when tasks come due.</p>
+                <div class="empty-state-features">
+                  <div class="empty-state-feature">
+                    <i data-lucide="repeat"></i>
+                    <div>
+                      <strong>Recurring Schedules</strong>
+                      <span>Daily, weekly, monthly, quarterly, or annual frequencies</span>
+                    </div>
+                  </div>
+                  <div class="empty-state-feature">
+                    <i data-lucide="zap"></i>
+                    <div>
+                      <strong>Auto-Generated Work Orders</strong>
+                      <span>Tasks are automatically created when maintenance is due</span>
+                    </div>
+                  </div>
+                  <div class="empty-state-feature">
+                    <i data-lucide="gauge"></i>
+                    <div>
+                      <strong>Meter-Based Triggers</strong>
+                      <span>Trigger maintenance based on asset usage, not just time</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="empty-state-connections">
+                  <span class="empty-state-conn"><i data-lucide="link"></i> Creates Work Orders automatically for your Assets</span>
+                </div>
                 <button class="btn btn-primary" onclick="Router.navigate('#/preventive/new')">
-                  <i data-lucide="plus"></i> Create Schedule
+                  <i data-lucide="plus"></i> Create First Schedule
                 </button>
               </div>
             ` : `
@@ -58,6 +92,7 @@ const Preventive = {
                   }).join('')}
                 </tbody>
               </table>
+              ${Pagination.render(pagination, 'Preventive')}
             `}
           </div>
         </div>
@@ -66,6 +101,11 @@ const Preventive = {
     } catch (e) {
       container.innerHTML = `<div class="error-state"><p>${e.message}</p></div>`;
     }
+  },
+
+  goToPage(page) {
+    if (page < 1 || (this._pagination && page > this._pagination.totalPages)) return;
+    this.list(page);
   },
 
   async detail(params) {
@@ -168,12 +208,17 @@ const Preventive = {
     container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
     try {
-      const [assetData, userData] = await Promise.all([
+      const [assetData, propData, userData] = await Promise.all([
         API.get('/assets').catch(() => []),
+        API.get('/properties').catch(() => []),
         API.get('/users').catch(() => [])
       ]);
       const assets = Array.isArray(assetData) ? assetData : (assetData.data || assetData.assets || []);
+      const properties = Array.isArray(propData) ? propData : (propData.data || propData.properties || []);
       const users = Array.isArray(userData) ? userData : (userData.data || userData.users || []);
+
+      // Store assets for property auto-select
+      Preventive._formAssets = assets;
 
       container.innerHTML = `
         <div class="page-header">
@@ -197,12 +242,21 @@ const Preventive = {
               </div>
               <div class="form-row">
                 <div class="form-group">
-                  <label for="pm-asset">Asset</label>
-                  <select id="pm-asset" class="form-control">
-                    <option value="">Select asset...</option>
-                    ${assets.map(a => `<option value="${a.id}">${a.name} (${a.property_name || 'No property'})</option>`).join('')}
+                  <label for="pm-property">Property *</label>
+                  <select id="pm-property" class="form-control" required>
+                    <option value="">Select property...</option>
+                    ${properties.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
                   </select>
                 </div>
+                <div class="form-group">
+                  <label for="pm-asset">Asset</label>
+                  <select id="pm-asset" class="form-control" onchange="Preventive.onAssetChange(this.value)">
+                    <option value="">Select asset...</option>
+                    ${assets.map(a => `<option value="${a.id}" data-property-id="${a.property_id}">${a.name} (${a.property_name || 'No property'})</option>`).join('')}
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
                 <div class="form-group">
                   <label for="pm-assigned">Assign To</label>
                   <select id="pm-assigned" class="form-control">
@@ -220,8 +274,8 @@ const Preventive = {
                     <option value="biweekly">Bi-Weekly</option>
                     <option value="monthly" selected>Monthly</option>
                     <option value="quarterly">Quarterly</option>
-                    <option value="semiannually">Semi-Annually</option>
-                    <option value="annually">Annually</option>
+                    <option value="semiannual">Semi-Annual</option>
+                    <option value="annual">Annual</option>
                   </select>
                 </div>
                 <div class="form-group">
@@ -244,6 +298,15 @@ const Preventive = {
     }
   },
 
+  onAssetChange(assetId) {
+    if (!assetId) return;
+    const asset = (Preventive._formAssets || []).find(a => String(a.id) === String(assetId));
+    if (asset && asset.property_id) {
+      const propSelect = document.getElementById('pm-property');
+      if (propSelect) propSelect.value = String(asset.property_id);
+    }
+  },
+
   async handleCreate(e) {
     e.preventDefault();
     const btn = document.getElementById('pm-submit');
@@ -256,6 +319,7 @@ const Preventive = {
       const body = {
         title: document.getElementById('pm-title').value,
         description: document.getElementById('pm-description').value || null,
+        property_id: document.getElementById('pm-property').value,
         asset_id: document.getElementById('pm-asset').value || null,
         assigned_to: document.getElementById('pm-assigned').value || null,
         frequency: document.getElementById('pm-frequency').value,
@@ -285,7 +349,7 @@ const Preventive = {
       ]);
       const assets = Array.isArray(assetData) ? assetData : (assetData.data || assetData.assets || []);
       const users = Array.isArray(userData) ? userData : (userData.data || userData.users || []);
-      const frequencies = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'semiannually', 'annually'];
+      const frequencies = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'semiannual', 'annual'];
 
       container.innerHTML = `
         <div class="page-header">
@@ -412,8 +476,8 @@ const Preventive = {
       biweekly: 'Bi-Weekly',
       monthly: 'Monthly',
       quarterly: 'Quarterly',
-      semiannually: 'Semi-Annually',
-      annually: 'Annually'
+      semiannual: 'Semi-Annual',
+      annual: 'Annual'
     };
     return map[freq] || freq || '-';
   },

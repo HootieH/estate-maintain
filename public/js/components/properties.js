@@ -1,15 +1,21 @@
 const Properties = {
-  async list() {
+  _currentPage: 1,
+  _pagination: null,
+
+  async list(page) {
+    this._currentPage = page || 1;
     const container = document.getElementById('main-content');
     container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading properties...</p></div>';
 
     try {
-      const data = await API.get('/properties');
-      const properties = Array.isArray(data) ? data : (data.data || data.properties || []);
+      const params = new URLSearchParams({ page: this._currentPage, limit: 25 });
+      const data = await API.get(`/properties?${params.toString()}`);
+      const { items: properties, pagination } = Pagination.extract(data, 'properties');
+      this._pagination = pagination;
 
       container.innerHTML = `
         <div class="page-header">
-          <h1>Properties</h1>
+          <h1>Properties <span class="tip-trigger" data-tip="property"><i data-lucide="help-circle" class="tip-badge-icon"></i></span></h1>
           <button class="btn btn-primary" onclick="Router.navigate('#/properties/new')">
             <i data-lucide="plus"></i> Add Property
           </button>
@@ -41,6 +47,7 @@ const Properties = {
               </div>
             `).join('')}
           </div>
+          ${Pagination.render(pagination, 'Properties')}
         `}
       `;
       lucide.createIcons();
@@ -49,18 +56,32 @@ const Properties = {
     }
   },
 
+  goToPage(page) {
+    if (page < 1 || (this._pagination && page > this._pagination.totalPages)) return;
+    this.list(page);
+  },
+
   async detail(params) {
     const container = document.getElementById('main-content');
     container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
     try {
       const property = await API.get(`/properties/${params.id}`);
-      const [assets, workorders] = await Promise.all([
-        API.get(`/properties/${params.id}/assets`).catch(() => []),
-        API.get(`/properties/${params.id}/workorders`).catch(() => [])
+      const [assets, workorders, locationsData] = await Promise.all([
+        API.get(`/assets?property_id=${params.id}`).catch(() => []),
+        API.get(`/workorders?property_id=${params.id}`).catch(() => []),
+        API.get(`/locations?property_id=${params.id}&format=tree`).catch(() => [])
       ]);
       const assetList = Array.isArray(assets) ? assets : (assets.data || assets.assets || []);
       const woList = Array.isArray(workorders) ? workorders : (workorders.data || workorders.workorders || []);
+      const locationTree = Array.isArray(locationsData) ? locationsData : [];
+
+      // Also get flat list for the parent dropdown
+      let flatLocations = [];
+      try {
+        const flatData = await API.get(`/locations?property_id=${params.id}`);
+        flatLocations = Array.isArray(flatData) ? flatData : [];
+      } catch (e) { /* ignore */ }
 
       container.innerHTML = `
         <div class="page-header">
@@ -114,6 +135,7 @@ const Properties = {
         <div class="tabs">
           <button class="tab active" onclick="Properties.switchTab(this, 'assets-tab')">Assets (${assetList.length})</button>
           <button class="tab" onclick="Properties.switchTab(this, 'wo-tab')">Work Orders (${woList.length})</button>
+          <button class="tab" onclick="Properties.switchTab(this, 'locations-tab')">Locations</button>
         </div>
 
         <div id="assets-tab" class="tab-content active">
@@ -158,10 +180,118 @@ const Properties = {
             </table>
           `}
         </div>
+
+        <div id="locations-tab" class="tab-content">
+          <div style="margin-bottom:16px;">
+            <button class="btn btn-primary btn-sm" onclick="Properties.showAddLocationModal('${params.id}')">
+              <i data-lucide="plus"></i> Add Location
+            </button>
+          </div>
+          <div id="locations-tree">
+            ${locationTree.length === 0 ? `
+              <div class="empty-state-sm">No locations defined. Add locations to organize this property.</div>
+            ` : Properties._renderLocationTree(locationTree, params.id)}
+          </div>
+        </div>
       `;
+
+      // Store flat locations for the add modal
+      Properties._currentPropertyId = params.id;
+      Properties._flatLocations = flatLocations;
+
       lucide.createIcons();
     } catch (e) {
       container.innerHTML = `<div class="error-state"><p>${e.message}</p></div>`;
+    }
+  },
+
+  _renderLocationTree(nodes, propertyId, depth) {
+    depth = depth || 0;
+    return nodes.map(node => `
+      <div class="location-tree-item" style="margin-left:${depth * 24}px;padding:8px 12px;border:1px solid var(--border-color);border-radius:6px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          ${depth > 0 ? '<span style="color:var(--text-muted);margin-right:4px;">&#8627;</span>' : ''}
+          <strong>${node.name}</strong>
+          ${node.description ? `<span class="text-muted" style="margin-left:8px;">${node.description}</span>` : ''}
+        </div>
+        <div style="display:flex;gap:4px;">
+          <button class="btn btn-danger btn-sm" onclick="Properties.deleteLocation('${node.id}', '${propertyId}')" title="Delete">
+            <i data-lucide="trash-2"></i>
+          </button>
+        </div>
+      </div>
+      ${node.children && node.children.length > 0 ? Properties._renderLocationTree(node.children, propertyId, depth + 1) : ''}
+    `).join('');
+  },
+
+  showAddLocationModal(propertyId) {
+    const flatLocations = Properties._flatLocations || [];
+    const overlay = document.getElementById('modal-overlay');
+    overlay.querySelector('.modal-title').textContent = 'Add Location';
+    overlay.querySelector('.modal-body').innerHTML = `
+      <form id="add-location-form" onsubmit="Properties.handleAddLocation(event, '${propertyId}')">
+        <div class="form-group">
+          <label for="location-name">Name *</label>
+          <input type="text" id="location-name" class="form-control" required placeholder="e.g., Building A, Floor 2, Room 101">
+        </div>
+        <div class="form-group">
+          <label for="location-parent">Parent Location</label>
+          <select id="location-parent" class="form-control">
+            <option value="">None (top level)</option>
+            ${flatLocations.map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="location-description">Description</label>
+          <textarea id="location-description" class="form-control" rows="2" placeholder="Optional description..."></textarea>
+        </div>
+        <div id="location-form-error" class="form-error" style="display:none"></div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="location-submit">Add Location</button>
+        </div>
+      </form>
+    `;
+    overlay.querySelector('.modal-footer').innerHTML = '';
+    overlay.style.display = 'flex';
+    lucide.createIcons();
+  },
+
+  async handleAddLocation(e, propertyId) {
+    e.preventDefault();
+    const btn = document.getElementById('location-submit');
+    const errorEl = document.getElementById('location-form-error');
+    errorEl.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = 'Adding...';
+
+    try {
+      await API.post('/locations', {
+        property_id: parseInt(propertyId),
+        parent_location_id: document.getElementById('location-parent').value || null,
+        name: document.getElementById('location-name').value,
+        description: document.getElementById('location-description').value || null
+      });
+      App.closeModal();
+      App.toast('Location added', 'success');
+      Properties.detail({ id: propertyId });
+    } catch (err) {
+      errorEl.textContent = err.message;
+      errorEl.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Add Location';
+    }
+  },
+
+  async deleteLocation(locationId, propertyId) {
+    if (!confirm('Delete this location?')) return;
+    try {
+      await API.delete(`/locations/${locationId}`);
+      App.toast('Location deleted', 'success');
+      Properties.detail({ id: propertyId });
+    } catch (e) {
+      App.toast(e.message, 'error');
     }
   },
 
@@ -194,11 +324,12 @@ const Properties = {
               <div class="form-group">
                 <label for="prop-type">Type</label>
                 <select id="prop-type" class="form-control">
-                  <option value="residential">Residential</option>
+                  <option value="estate">Estate</option>
+                  <option value="villa">Villa</option>
+                  <option value="apartment">Apartment</option>
+                  <option value="cottage">Cottage</option>
                   <option value="commercial">Commercial</option>
-                  <option value="vacation">Vacation</option>
-                  <option value="ranch">Ranch</option>
-                  <option value="other">Other</option>
+                  <option value="land">Land</option>
                 </select>
               </div>
             </div>
@@ -287,11 +418,12 @@ const Properties = {
                 <div class="form-group">
                   <label for="prop-type">Type</label>
                   <select id="prop-type" class="form-control">
-                    <option value="residential" ${property.type === 'residential' ? 'selected' : ''}>Residential</option>
+                    <option value="estate" ${property.type === 'estate' ? 'selected' : ''}>Estate</option>
+                    <option value="villa" ${property.type === 'villa' ? 'selected' : ''}>Villa</option>
+                    <option value="apartment" ${property.type === 'apartment' ? 'selected' : ''}>Apartment</option>
+                    <option value="cottage" ${property.type === 'cottage' ? 'selected' : ''}>Cottage</option>
                     <option value="commercial" ${property.type === 'commercial' ? 'selected' : ''}>Commercial</option>
-                    <option value="vacation" ${property.type === 'vacation' ? 'selected' : ''}>Vacation</option>
-                    <option value="ranch" ${property.type === 'ranch' ? 'selected' : ''}>Ranch</option>
-                    <option value="other" ${property.type === 'other' ? 'selected' : ''}>Other</option>
+                    <option value="land" ${property.type === 'land' ? 'selected' : ''}>Land</option>
                   </select>
                 </div>
               </div>

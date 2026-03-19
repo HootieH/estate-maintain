@@ -4,24 +4,28 @@ const Dashboard = {
     container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading dashboard...</p></div>';
 
     try {
-      const [stats, workorders, preventive, parts] = await Promise.all([
-        API.get('/dashboard/stats').catch(() => null),
+      const [stats, workorders, preventive, parts, onboardingStatus] = await Promise.all([
+        API.get('/dashboard').catch(() => null),
         API.get('/workorders?limit=10').catch(() => []),
         API.get('/preventive?upcoming=7').catch(() => []),
-        API.get('/parts?low_stock=true').catch(() => [])
+        API.get('/parts?low_stock=true').catch(() => []),
+        API.get('/onboarding/status').catch(() => null)
       ]);
 
-      const s = stats || { total_properties: 0, open_workorders: 0, overdue_workorders: 0, completed_this_month: 0, by_priority: {}, by_status: {} };
+      const s = stats || { totalProperties: 0, openWorkOrders: 0, overdueWorkOrders: 0, completedThisMonth: 0, workOrdersByPriority: {}, workOrdersByStatus: {} };
       const woList = Array.isArray(workorders) ? workorders : (workorders.data || workorders.workorders || []);
       const pmList = Array.isArray(preventive) ? preventive : (preventive.data || preventive.schedules || []);
       const partsList = Array.isArray(parts) ? parts : (parts.data || parts.parts || []);
 
-      const byPriority = s.by_priority || {};
-      const byStatus = s.by_status || {};
+      const byPriority = s.workOrdersByPriority || {};
+      const byStatus = s.workOrdersByStatus || {};
       const maxPriority = Math.max(byPriority.critical || 0, byPriority.high || 0, byPriority.medium || 0, byPriority.low || 0, 1);
       const maxStatus = Math.max(byStatus.open || 0, byStatus.in_progress || 0, byStatus.on_hold || 0, byStatus.completed || 0, 1);
 
       container.innerHTML = `
+        ${this.renderSetupChecklist(onboardingStatus)}
+        ${this.renderWelcomeBack(s)}
+        ${this.renderNextSteps(onboardingStatus)}
         <div class="page-header">
           <h1>Dashboard</h1>
         </div>
@@ -32,7 +36,7 @@ const Dashboard = {
               <i data-lucide="building-2"></i>
             </div>
             <div class="stat-info">
-              <div class="stat-value">${s.total_properties || 0}</div>
+              <div class="stat-value">${s.totalProperties || 0}</div>
               <div class="stat-label">Total Properties</div>
             </div>
           </div>
@@ -41,7 +45,7 @@ const Dashboard = {
               <i data-lucide="clipboard-list"></i>
             </div>
             <div class="stat-info">
-              <div class="stat-value">${s.open_workorders || 0}</div>
+              <div class="stat-value">${s.openWorkOrders || 0}</div>
               <div class="stat-label">Open Work Orders</div>
             </div>
           </div>
@@ -50,7 +54,7 @@ const Dashboard = {
               <i data-lucide="alert-triangle"></i>
             </div>
             <div class="stat-info">
-              <div class="stat-value">${s.overdue_workorders || 0}</div>
+              <div class="stat-value">${s.overdueWorkOrders || 0}</div>
               <div class="stat-label">Overdue</div>
             </div>
           </div>
@@ -59,7 +63,7 @@ const Dashboard = {
               <i data-lucide="check-circle-2"></i>
             </div>
             <div class="stat-info">
-              <div class="stat-value">${s.completed_this_month || 0}</div>
+              <div class="stat-value">${s.completedThisMonth || 0}</div>
               <div class="stat-label">Completed This Month</div>
             </div>
           </div>
@@ -238,6 +242,7 @@ const Dashboard = {
         </div>
       `;
       lucide.createIcons();
+      this.animateStats();
     } catch (e) {
       container.innerHTML = `<div class="empty-state"><h2>Error loading dashboard</h2><p>${e.message}</p></div>`;
     }
@@ -248,6 +253,197 @@ const Dashboard = {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr;
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  },
+
+  renderSetupChecklist(status) {
+    if (!status || status.onboarding_completed === undefined) return '';
+    const user = API.getUser();
+    if (!user || user.role !== 'admin') return '';
+
+    const cl = status.checklist || {};
+    const items = [
+      { key: 'properties', label: 'Add a property', desc: 'Create your first estate property', route: '#/properties/new', done: cl.properties > 0 },
+      { key: 'assets', label: 'Add assets', desc: 'Track equipment and systems', route: '#/assets/new', done: cl.assets > 0 },
+      { key: 'teams', label: 'Create a team', desc: 'Organize your maintenance staff', route: '#/teams/new', done: cl.teams > 0 },
+      { key: 'members', label: 'Add team members', desc: 'Invite staff to collaborate', route: '#/teams', done: cl.members > 1 },
+      { key: 'work_orders', label: 'Create a work order', desc: 'Track your first maintenance task', route: '#/workorders/new', done: cl.work_orders > 0 },
+      { key: 'preventive', label: 'Set up preventive maintenance', desc: 'Schedule recurring tasks', route: '#/preventive/new', done: cl.preventive_schedules > 0 }
+    ];
+
+    const completed = items.filter(i => i.done).length;
+    const total = items.length;
+    const pct = Math.round((completed / total) * 100);
+
+    // Don't show if all complete and dismissed
+    if (completed === total) return '';
+    if (localStorage.getItem('setup_checklist_dismissed')) return '';
+
+    return `
+      <div class="setup-checklist">
+        <div class="setup-checklist-header">
+          <div>
+            <h3>Get Your Estate Set Up</h3>
+            <p>${completed} of ${total} steps completed</p>
+          </div>
+          <button class="setup-checklist-dismiss" onclick="Dashboard.dismissChecklist()" title="Dismiss">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <div class="setup-checklist-progress">
+          <div class="setup-checklist-progress-bar" style="width: ${pct}%"></div>
+        </div>
+        <div class="setup-checklist-items">
+          ${items.map(i => `
+            <a href="${i.route}" class="setup-checklist-item ${i.done ? 'completed' : ''}">
+              <div class="setup-item-check">
+                <i data-lucide="check"></i>
+              </div>
+              <div class="setup-item-text">
+                <strong>${i.label}</strong>
+                <span>${i.desc}</span>
+              </div>
+            </a>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  },
+
+  dismissChecklist() {
+    localStorage.setItem('setup_checklist_dismissed', '1');
+    const el = document.querySelector('.setup-checklist');
+    if (el) {
+      el.style.transition = 'opacity 0.3s, transform 0.3s';
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(-10px)';
+      setTimeout(() => el.remove(), 300);
+    }
+  },
+
+  renderNextSteps(status) {
+    if (!status) return '';
+    const cl = status.checklist || {};
+    const user = API.getUser();
+    const role = user?.role || 'technician';
+
+    const suggestions = [];
+
+    if (role === 'admin' || role === 'manager') {
+      if (cl.properties === 0) {
+        suggestions.push({ icon: 'building-2', color: '#8B5CF6', title: 'Add Your First Property', desc: 'Properties are the foundation — start by adding a residence or building.', route: '#/properties/new' });
+      }
+      if (cl.properties > 0 && cl.assets === 0) {
+        suggestions.push({ icon: 'wrench', color: '#3B82F6', title: 'Register Your Assets', desc: 'Track equipment and systems so you can schedule maintenance.', route: '#/assets/new' });
+      }
+      if (cl.properties > 0 && cl.preventive_schedules === 0) {
+        suggestions.push({ icon: 'calendar-clock', color: '#10B981', title: 'Set Up Preventive Maintenance', desc: 'Schedule recurring tasks so nothing falls through the cracks.', route: '#/preventive/new' });
+      }
+      if (cl.teams === 0) {
+        suggestions.push({ icon: 'users', color: '#F59E0B', title: 'Create a Team', desc: 'Organize your staff by specialty for efficient task assignment.', route: '#/teams/new' });
+      }
+      if (cl.vendors === 0) {
+        suggestions.push({ icon: 'truck', color: '#EC4899', title: 'Add Your Vendors', desc: 'Keep a directory of suppliers for easy procurement.', route: '#/vendors/new' });
+      }
+      if (cl.work_orders === 0 && cl.properties > 0) {
+        suggestions.push({ icon: 'clipboard-list', color: '#EF4444', title: 'Create a Work Order', desc: 'Start tracking your first maintenance task.', route: '#/workorders/new' });
+      }
+    }
+
+    // Don't show if nothing to suggest or too many things already set up
+    if (suggestions.length === 0) return '';
+
+    // Show max 3
+    const shown = suggestions.slice(0, 3);
+
+    return `
+      <div class="next-steps-section">
+        <h3 class="next-steps-title"><i data-lucide="lightbulb"></i> Suggested Next Steps</h3>
+        <div class="next-steps-grid">
+          ${shown.map(s => `
+            <a href="${s.route}" class="next-step-card">
+              <div class="next-step-icon" style="background: ${s.color}12; color: ${s.color}">
+                <i data-lucide="${s.icon}"></i>
+              </div>
+              <div class="next-step-text">
+                <strong>${s.title}</strong>
+                <span>${s.desc}</span>
+              </div>
+              <i data-lucide="arrow-right" class="next-step-arrow"></i>
+            </a>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  },
+
+  renderWelcomeBack(stats) {
+    const user = API.getUser();
+    if (!user) return '';
+
+    // Only show if user has completed onboarding and there's activity
+    const s = stats || {};
+    const hasActivity = (s.openWorkOrders || 0) > 0 || (s.overdueWorkOrders || 0) > 0;
+    if (!hasActivity) return '';
+
+    // Don't show if dismissed today
+    const dismissKey = 'welcome_back_' + new Date().toISOString().split('T')[0];
+    if (localStorage.getItem(dismissKey)) return '';
+
+    const firstName = (user.name || 'there').split(' ')[0];
+    const hour = new Date().getHours();
+    const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+    const alerts = [];
+    if (s.overdueWorkOrders > 0) alerts.push(`<span class="wb-alert wb-alert-danger"><i data-lucide="alert-triangle"></i> ${s.overdueWorkOrders} overdue</span>`);
+    if (s.openWorkOrders > 0) alerts.push(`<span class="wb-alert wb-alert-info"><i data-lucide="clipboard-list"></i> ${s.openWorkOrders} open work orders</span>`);
+
+    return `
+      <div class="welcome-back-card" id="welcome-back">
+        <div class="wb-content">
+          <div class="wb-greeting">
+            <strong>${greeting}, ${firstName}</strong>
+            <span>Here's what needs your attention today</span>
+          </div>
+          <div class="wb-alerts">${alerts.join('')}</div>
+        </div>
+        <button class="wb-dismiss" onclick="Dashboard.dismissWelcomeBack()" title="Dismiss">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+    `;
+  },
+
+  dismissWelcomeBack() {
+    const dismissKey = 'welcome_back_' + new Date().toISOString().split('T')[0];
+    localStorage.setItem(dismissKey, '1');
+    const el = document.getElementById('welcome-back');
+    if (el) {
+      el.style.transition = 'opacity 0.3s, transform 0.3s';
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(-10px)';
+      setTimeout(() => el.remove(), 300);
+    }
+  },
+
+  animateStats() {
+    document.querySelectorAll('.stat-value').forEach(el => {
+      const target = parseInt(el.textContent) || 0;
+      if (target === 0) return;
+
+      el.textContent = '0';
+      const duration = 800;
+      const start = performance.now();
+
+      function update(now) {
+        const elapsed = now - start;
+        const progress = Math.min(elapsed / duration, 1);
+        // Ease out cubic
+        const eased = 1 - Math.pow(1 - progress, 3);
+        el.textContent = Math.round(target * eased);
+        if (progress < 1) requestAnimationFrame(update);
+      }
+      requestAnimationFrame(update);
+    });
   },
 
   getDueClass(dateStr) {

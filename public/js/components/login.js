@@ -98,6 +98,8 @@ const Login = {
       });
       API.setToken(data.token);
       API.setUser(data.user);
+      // Flag as new registration so onboarding triggers
+      localStorage.setItem('just_registered', '1');
       App.showMain();
     } catch (err) {
       errorEl.textContent = err.message;

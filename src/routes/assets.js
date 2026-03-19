@@ -31,8 +31,25 @@ router.get('/', (req, res) => {
     }
 
     sql += ' ORDER BY a.name';
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 25;
+    const offset = (page - 1) * limit;
+
+    let countSql = `SELECT COUNT(*) as total FROM assets a`;
+    if (conditions.length > 0) {
+      countSql += ' WHERE ' + conditions.join(' AND ');
+    }
+    const { total } = db.prepare(countSql).get(...params);
+
+    sql += ` LIMIT ? OFFSET ?`;
+    params.push(limit, offset);
+
     const assets = db.prepare(sql).all(...params);
-    res.json(assets);
+    res.json({
+      data: assets,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
+    });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch assets', details: err.message });
   }
@@ -61,18 +78,18 @@ router.get('/:id', (req, res) => {
 // POST /
 router.post('/', requireRole('admin', 'manager', 'technician'), (req, res) => {
   try {
-    const { name, category, property_id, location_description, make, model, serial_number, install_date, warranty_expiry, status, notes } = req.body;
+    const { name, category, property_id, location_id, location_description, make, model, serial_number, install_date, warranty_expiry, status, notes } = req.body;
 
     if (!name || !category || !property_id) {
       return res.status(400).json({ error: 'Name, category, and property_id are required' });
     }
 
     const result = db.prepare(`
-      INSERT INTO assets (name, category, property_id, location_description, make, model, serial_number, install_date, warranty_expiry, status, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO assets (name, category, property_id, location_id, location_description, make, model, serial_number, install_date, warranty_expiry, status, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       name, category, property_id,
-      location_description || null, make || null, model || null,
+      location_id || null, location_description || null, make || null, model || null,
       serial_number || null, install_date || null, warranty_expiry || null,
       status || 'operational', notes || null
     );
@@ -94,16 +111,17 @@ router.put('/:id', requireRole('admin', 'manager', 'technician'), (req, res) => 
       return res.status(404).json({ error: 'Asset not found' });
     }
 
-    const { name, category, property_id, location_description, make, model, serial_number, install_date, warranty_expiry, status, notes } = req.body;
+    const { name, category, property_id, location_id, location_description, make, model, serial_number, install_date, warranty_expiry, status, notes } = req.body;
 
     db.prepare(`
-      UPDATE assets SET name = ?, category = ?, property_id = ?, location_description = ?, make = ?, model = ?,
+      UPDATE assets SET name = ?, category = ?, property_id = ?, location_id = ?, location_description = ?, make = ?, model = ?,
         serial_number = ?, install_date = ?, warranty_expiry = ?, status = ?, notes = ?
       WHERE id = ?
     `).run(
       name || existing.name,
       category || existing.category,
       property_id || existing.property_id,
+      location_id !== undefined ? (location_id || null) : existing.location_id,
       location_description !== undefined ? location_description : existing.location_description,
       make !== undefined ? make : existing.make,
       model !== undefined ? model : existing.model,

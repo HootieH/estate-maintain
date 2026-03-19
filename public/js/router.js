@@ -77,6 +77,9 @@ const Router = {
       assets: 'Assets',
       preventive: 'Preventive Maintenance',
       parts: 'Parts & Inventory',
+      procedures: 'Procedures',
+      messages: 'Messages',
+      requests: 'Work Requests',
       teams: 'Teams',
       settings: 'Settings',
       new: 'New'

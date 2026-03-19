@@ -28,8 +28,25 @@ router.get('/', (req, res) => {
     }
 
     sql += ' ORDER BY p.name';
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 25;
+    const offset = (page - 1) * limit;
+
+    let countSql = `SELECT COUNT(*) as total FROM properties p`;
+    if (conditions.length > 0) {
+      countSql += ' WHERE ' + conditions.join(' AND ');
+    }
+    const { total } = db.prepare(countSql).get(...params);
+
+    sql += ` LIMIT ? OFFSET ?`;
+    params.push(limit, offset);
+
     const properties = db.prepare(sql).all(...params);
-    res.json(properties);
+    res.json({
+      data: properties,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
+    });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch properties', details: err.message });
   }
@@ -58,15 +75,15 @@ router.get('/:id', (req, res) => {
 // POST /
 router.post('/', requireRole('admin', 'manager'), (req, res) => {
   try {
-    const { name, address, type, notes, team_id, image_url } = req.body;
+    const { name, address, type, notes, team_id, image_url, year_built, square_footage } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: 'Property name is required' });
     }
 
     const result = db.prepare(
-      'INSERT INTO properties (name, address, type, notes, team_id, image_url) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run(name, address || null, type || 'estate', notes || null, team_id || null, image_url || null);
+      'INSERT INTO properties (name, address, type, notes, team_id, image_url, year_built, square_footage) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(name, address || null, type || 'estate', notes || null, team_id || null, image_url || null, year_built || null, square_footage || null);
 
     const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(result.lastInsertRowid);
     logActivity('property', property.id, 'created', `Property "${name}" created`, req.user.id);
@@ -85,10 +102,10 @@ router.put('/:id', requireRole('admin', 'manager'), (req, res) => {
       return res.status(404).json({ error: 'Property not found' });
     }
 
-    const { name, address, type, notes, team_id, image_url } = req.body;
+    const { name, address, type, notes, team_id, image_url, year_built, square_footage } = req.body;
 
     db.prepare(`
-      UPDATE properties SET name = ?, address = ?, type = ?, notes = ?, team_id = ?, image_url = ?
+      UPDATE properties SET name = ?, address = ?, type = ?, notes = ?, team_id = ?, image_url = ?, year_built = ?, square_footage = ?
       WHERE id = ?
     `).run(
       name || existing.name,
@@ -97,6 +114,8 @@ router.put('/:id', requireRole('admin', 'manager'), (req, res) => {
       notes !== undefined ? notes : existing.notes,
       team_id !== undefined ? team_id : existing.team_id,
       image_url !== undefined ? image_url : existing.image_url,
+      year_built !== undefined ? year_built : existing.year_built,
+      square_footage !== undefined ? square_footage : existing.square_footage,
       req.params.id
     );
 

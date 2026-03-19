@@ -1,0 +1,181 @@
+const Tooltips = {
+  definitions: {
+    'work-order': {
+      title: 'Work Order',
+      text: 'A specific maintenance task or repair job. Work orders track what needs to be done, who\'s assigned, priority, and status from open to completion.',
+      connections: 'Linked to Properties, Assets, and Teams'
+    },
+    'property': {
+      title: 'Property',
+      text: 'A physical location in your estate portfolio — a manor, villa, apartment, cottage, or commercial building. Properties contain assets and are assigned to teams.',
+      connections: 'Contains Assets and Locations'
+    },
+    'asset': {
+      title: 'Asset',
+      text: 'A piece of equipment or system that needs maintenance — HVAC units, pools, generators, security systems. Each asset belongs to a property and can have meters to track usage.',
+      connections: 'Belongs to a Property, linked to Work Orders'
+    },
+    'preventive-maintenance': {
+      title: 'Preventive Maintenance',
+      text: 'Scheduled recurring maintenance to prevent breakdowns. Set a frequency (daily to annual) and the system auto-creates work orders when tasks come due.',
+      connections: 'Auto-generates Work Orders for Assets'
+    },
+    'team': {
+      title: 'Team',
+      text: 'A group of maintenance staff organized by specialty — grounds, interior, security, housekeeping. Assign properties and work orders to teams for efficient operations.',
+      connections: 'Contains Members, assigned to Properties'
+    },
+    'procedure': {
+      title: 'Procedure',
+      text: 'A reusable step-by-step checklist template. Attach procedures to work orders to ensure consistent, thorough completion of maintenance tasks.',
+      connections: 'Templates attached to Work Orders'
+    },
+    'work-request': {
+      title: 'Work Request',
+      text: 'A maintenance request submitted by residents or staff — no login required. Managers review requests and can approve them into full work orders.',
+      connections: 'Can be approved into Work Orders'
+    },
+    'parts': {
+      title: 'Parts & Inventory',
+      text: 'Track spare parts, supplies, and materials across your properties. Set minimum stock levels to get low-stock alerts before you run out.',
+      connections: 'Used in Work Orders, ordered via Purchase Orders'
+    },
+    'vendor': {
+      title: 'Vendor',
+      text: 'An external supplier or service provider. Track contact details, specialties, and link vendors to purchase orders for streamlined procurement.',
+      connections: 'Linked to Purchase Orders'
+    },
+    'purchase-order': {
+      title: 'Purchase Order',
+      text: 'A formal order to a vendor for parts or services. POs follow a workflow: Draft → Submit → Approve → Receive. Receiving auto-updates your parts inventory.',
+      connections: 'Links Vendors to Parts inventory'
+    },
+    'meter': {
+      title: 'Meter',
+      text: 'Tracks usage on an asset — hours, miles, cycles, kWh. Set triggers to auto-create maintenance work orders when usage thresholds are reached.',
+      connections: 'Belongs to Assets, triggers Preventive Maintenance'
+    },
+    'location': {
+      title: 'Location',
+      text: 'A named area within a property — buildings, floors, rooms. Organize assets by location for easy navigation and precise work order targeting.',
+      connections: 'Nested within Properties, linked to Assets'
+    },
+    'priority': {
+      title: 'Priority Levels',
+      text: 'Critical: Immediate safety/damage risk. High: Affects operations, fix soon. Medium: Standard maintenance. Low: Cosmetic or deferrable.',
+      connections: ''
+    },
+    'frequency': {
+      title: 'Maintenance Frequency',
+      text: 'How often a preventive task repeats — from daily checks to annual inspections. The system auto-calculates the next due date after each completion.',
+      connections: ''
+    }
+  },
+
+  _activeTooltip: null,
+  _hoverTimeout: null,
+
+  init() {
+    // Use event delegation on document for efficiency
+    document.addEventListener('mouseover', (e) => {
+      const trigger = e.target.closest('[data-tip]');
+      if (!trigger) return;
+
+      clearTimeout(this._hoverTimeout);
+      this._hoverTimeout = setTimeout(() => {
+        this.show(trigger);
+      }, 400);
+    });
+
+    document.addEventListener('mouseout', (e) => {
+      const trigger = e.target.closest('[data-tip]');
+      if (!trigger) return;
+
+      clearTimeout(this._hoverTimeout);
+      this._hoverTimeout = setTimeout(() => {
+        this.hide();
+      }, 200);
+    });
+
+    // Keep tooltip visible when hovering over it
+    document.addEventListener('mouseover', (e) => {
+      if (e.target.closest('.tip-popup')) {
+        clearTimeout(this._hoverTimeout);
+      }
+    });
+
+    document.addEventListener('mouseout', (e) => {
+      if (e.target.closest('.tip-popup')) {
+        this._hoverTimeout = setTimeout(() => {
+          this.hide();
+        }, 200);
+      }
+    });
+
+    // Click to dismiss on mobile
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.tip-popup') && !e.target.closest('[data-tip]')) {
+        this.hide();
+      }
+    });
+  },
+
+  show(trigger) {
+    this.hide();
+
+    const key = trigger.getAttribute('data-tip');
+    const def = this.definitions[key];
+    if (!def) return;
+
+    const popup = document.createElement('div');
+    popup.className = 'tip-popup';
+    popup.innerHTML = `
+      <div class="tip-header">
+        <i data-lucide="info" class="tip-icon"></i>
+        <strong>${def.title}</strong>
+      </div>
+      <p class="tip-text">${def.text}</p>
+      ${def.connections ? `<div class="tip-connections"><i data-lucide="link" class="tip-conn-icon"></i> ${def.connections}</div>` : ''}
+    `;
+
+    document.body.appendChild(popup);
+    lucide.createIcons({ nodes: [popup] });
+
+    // Position relative to trigger
+    const rect = trigger.getBoundingClientRect();
+    const popupRect = popup.getBoundingClientRect();
+
+    let top = rect.bottom + 8;
+    let left = rect.left + (rect.width / 2) - (popupRect.width / 2);
+
+    // Keep within viewport
+    if (left < 12) left = 12;
+    if (left + popupRect.width > window.innerWidth - 12) {
+      left = window.innerWidth - popupRect.width - 12;
+    }
+    if (top + popupRect.height > window.innerHeight - 12) {
+      top = rect.top - popupRect.height - 8;
+    }
+
+    popup.style.top = `${top}px`;
+    popup.style.left = `${left}px`;
+
+    requestAnimationFrame(() => popup.classList.add('tip-visible'));
+
+    this._activeTooltip = popup;
+  },
+
+  hide() {
+    if (this._activeTooltip) {
+      this._activeTooltip.remove();
+      this._activeTooltip = null;
+    }
+  },
+
+  // Helper to create an inline tooltip trigger
+  badge(key, label) {
+    const def = this.definitions[key];
+    if (!def) return label || '';
+    return `<span class="tip-trigger" data-tip="${key}">${label || def.title}<i data-lucide="help-circle" class="tip-badge-icon"></i></span>`;
+  }
+};

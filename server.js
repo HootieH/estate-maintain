@@ -16,6 +16,17 @@ const preventiveRoutes = require('./src/routes/preventive');
 const partRoutes = require('./src/routes/parts');
 const dashboardRoutes = require('./src/routes/dashboard');
 const activityRoutes = require('./src/routes/activity');
+const reportRoutes = require('./src/routes/reports');
+const timeLogRoutes = require('./src/routes/timelogs');
+const notificationRoutes = require('./src/routes/notifications');
+const procedureRoutes = require('./src/routes/procedures');
+const messageRoutes = require('./src/routes/messages');
+const requestRoutes = require('./src/routes/requests');
+const meterRoutes = require('./src/routes/meters');
+const locationRoutes = require('./src/routes/locations');
+const vendorRoutes = require('./src/routes/vendors');
+const purchaseOrderRoutes = require('./src/routes/purchaseorders');
+const onboardingRoutes = require('./src/routes/onboarding');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -35,6 +46,22 @@ app.use('/api/preventive', preventiveRoutes);
 app.use('/api/parts', partRoutes);
 app.use('/api/dashboard', authenticate, dashboardRoutes);
 app.use('/api/activity', authenticate, activityRoutes);
+app.use('/api/reports', authenticate, reportRoutes);
+app.use('/api/time-logs', authenticate, timeLogRoutes);
+app.use('/api/notifications', authenticate, notificationRoutes);
+app.use('/api/procedures', procedureRoutes);
+app.use('/api/messages', authenticate, messageRoutes);
+app.use('/api/requests', requestRoutes);
+app.use('/api/meters', meterRoutes);
+app.use('/api/locations', locationRoutes);
+app.use('/api/vendors', vendorRoutes);
+app.use('/api/purchaseorders', purchaseOrderRoutes);
+app.use('/api/onboarding', onboardingRoutes);
+
+// Serve public request page before SPA fallback
+app.get('/request', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'request.html'));
+});
 
 // Preventive maintenance cron job - runs daily at midnight
 cron.schedule('0 0 * * *', () => {

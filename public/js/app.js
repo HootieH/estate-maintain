@@ -20,9 +20,41 @@ const App = {
     Router.add('/teams', () => Teams.list());
     Router.add('/teams/new', () => Teams.form());
     Router.add('/teams/:id', (p) => Teams.detail(p));
+    Router.add('/procedures', () => Procedures.list());
+    Router.add('/procedures/new', () => Procedures.form());
+    Router.add('/procedures/:id', (p) => Procedures.detail(p));
+    Router.add('/messages', () => { Messages.cleanup(); Messages.render(); });
+    Router.add('/messages/:type/:id', (p) => { Messages.cleanup(); Messages.openChannelDirect(p.type, p.id); });
+    Router.add('/requests', () => Requests.list());
+    Router.add('/requests/:id', (p) => Requests.detail(p));
+    Router.add('/vendors', () => Vendors.list());
+    Router.add('/vendors/new', () => Vendors.form());
+    Router.add('/vendors/:id', (p) => Vendors.detail(p));
+    Router.add('/purchaseorders', () => PurchaseOrders.list());
+    Router.add('/purchaseorders/new', () => PurchaseOrders.form());
+    Router.add('/purchaseorders/:id', (p) => PurchaseOrders.detail(p));
+    Router.add('/reports', () => Reports.render());
     Router.add('/settings', () => Settings.render());
 
     Router.init();
+
+    // Inject section banners and track visits on navigation
+    window.addEventListener('hashchange', () => {
+      const section = (window.location.hash.slice(2) || 'dashboard').split('/')[0];
+      this.trackSectionVisit(section);
+      // Inject banner after a short delay to let the route render
+      setTimeout(() => {
+        const container = document.getElementById('main-content');
+        if (!container) return;
+        const banner = this.getSectionBanner(section);
+        if (banner) {
+          const existing = document.getElementById('section-banner');
+          if (existing) existing.remove();
+          container.insertAdjacentHTML('afterbegin', banner);
+          lucide.createIcons();
+        }
+      }, 100);
+    });
 
     if (API.token) {
       this.showMain();
@@ -35,6 +67,9 @@ const App = {
     document.getElementById('login-view').style.display = 'block';
     document.getElementById('main-view').style.display = 'none';
     Login.render();
+    // Hide onboarding if showing
+    const obOverlay = document.getElementById('onboarding-overlay');
+    if (obOverlay) obOverlay.style.display = 'none';
   },
 
   showMain() {
@@ -47,7 +82,36 @@ const App = {
       window.location.hash = '#/dashboard';
     } else {
       Router.resolve();
+      // Track initial section visit
+      const initialSection = (window.location.hash.slice(1) || '/dashboard').split('/')[1];
+      this.trackSectionVisit(initialSection);
     }
+
+    // Poll for unread messages every 30 seconds
+    if (typeof Messages !== 'undefined') {
+      Messages.updateUnreadBadge();
+      this._unreadPollInterval = setInterval(() => {
+        Messages.updateUnreadBadge();
+      }, 30000);
+    }
+
+    // Update pending requests badge
+    if (typeof Requests !== 'undefined') {
+      Requests.updatePendingBadge();
+    }
+
+    // Initialize notifications polling
+    if (typeof Notifications !== 'undefined') {
+      Notifications.init();
+    }
+
+    // Check if onboarding needed for new users
+    if (typeof Onboarding !== 'undefined') {
+      Onboarding.check();
+    }
+
+    // Initialize sidebar discovery indicators
+    this.updateSidebarDiscovery();
   },
 
   updateSidebarUser() {
@@ -84,6 +148,149 @@ const App = {
       toast.classList.remove('show');
       toast.addEventListener('transitionend', () => toast.remove());
     }, 3500);
+  },
+
+  trackSectionVisit(section) {
+    if (!section || section === 'login') return;
+    const visited = JSON.parse(localStorage.getItem('visited_sections') || '[]');
+    if (!visited.includes(section)) {
+      visited.push(section);
+      localStorage.setItem('visited_sections', JSON.stringify(visited));
+    }
+    this.updateSidebarDiscovery();
+  },
+
+  updateSidebarDiscovery() {
+    const visited = JSON.parse(localStorage.getItem('visited_sections') || '[]');
+    const allSections = ['dashboard','workorders','requests','properties','assets','preventive',
+                         'procedures','parts','vendors','purchaseorders','messages','teams','reports','settings'];
+
+    document.querySelectorAll('.nav-item').forEach(item => {
+      const route = item.dataset.route;
+      if (!route) return;
+      if (!visited.includes(route) && route !== 'dashboard') {
+        item.classList.add('nav-item-new');
+      } else {
+        item.classList.remove('nav-item-new');
+      }
+    });
+  },
+
+  getSectionBanner(section) {
+    const bannerDismissed = JSON.parse(localStorage.getItem('dismissed_banners') || '[]');
+    if (bannerDismissed.includes(section)) return '';
+
+    const banners = {
+      workorders: {
+        icon: 'clipboard-list',
+        title: 'Work Orders',
+        text: 'Track every maintenance task from request to completion. Assign priorities, team members, and due dates. Add comments to keep everyone updated.',
+        color: '#3B82F6'
+      },
+      properties: {
+        icon: 'building-2',
+        title: 'Your Properties',
+        text: 'Each property in your portfolio lives here. Add locations, link assets, and see all related work orders at a glance.',
+        color: '#8B5CF6'
+      },
+      assets: {
+        icon: 'wrench',
+        title: 'Asset Registry',
+        text: 'Every piece of equipment and system you maintain. Track make, model, warranty, and attach meters to monitor usage over time.',
+        color: '#10B981'
+      },
+      preventive: {
+        icon: 'calendar-clock',
+        title: 'Preventive Maintenance',
+        text: 'Schedule recurring maintenance before things break. Set frequencies from daily to annual — the system auto-creates work orders when tasks come due.',
+        color: '#F59E0B'
+      },
+      parts: {
+        icon: 'package',
+        title: 'Parts & Inventory',
+        text: 'Track spare parts and supplies across properties. Set minimum stock levels to catch shortages early, and reorder through purchase orders.',
+        color: '#EF4444'
+      },
+      teams: {
+        icon: 'users',
+        title: 'Teams',
+        text: 'Organize your maintenance staff by specialty. Assign properties and work to teams so the right people handle the right tasks.',
+        color: '#6366F1'
+      },
+      vendors: {
+        icon: 'truck',
+        title: 'Vendor Directory',
+        text: 'Your trusted suppliers and contractors. Track contact info, specialties, and link vendors to purchase orders for organized procurement.',
+        color: '#EC4899'
+      },
+      purchaseorders: {
+        icon: 'shopping-cart',
+        title: 'Purchase Orders',
+        text: 'Formalize your procurement process. Draft orders, route for approval, and when you receive goods, inventory updates automatically.',
+        color: '#14B8A6'
+      },
+      procedures: {
+        icon: 'clipboard-check',
+        title: 'Procedures',
+        text: 'Create reusable checklists for common tasks. Attach them to work orders to ensure consistent, quality maintenance every time.',
+        color: '#F97316'
+      },
+      requests: {
+        icon: 'inbox',
+        title: 'Work Requests',
+        text: 'Residents and staff submit requests via a public form — no login needed. Review, approve, or decline from here.',
+        color: '#06B6D4'
+      },
+      messages: {
+        icon: 'message-circle',
+        title: 'Messages',
+        text: 'Direct messages, team channels, and work order discussions — all in one place. Keep communication organized and in context.',
+        color: '#8B5CF6'
+      },
+      reports: {
+        icon: 'bar-chart-3',
+        title: 'Reports & Analytics',
+        text: 'Track completion rates, response times, costs, and team performance. Data-driven insights to optimize your maintenance operations.',
+        color: '#10B981'
+      }
+    };
+
+    const banner = banners[section];
+    if (!banner) return '';
+
+    return `
+      <div class="section-intro-banner" id="section-banner" style="--banner-color: ${banner.color}">
+        <div class="section-intro-icon" style="background: ${banner.color}15; color: ${banner.color}">
+          <i data-lucide="${banner.icon}"></i>
+        </div>
+        <div class="section-intro-text">
+          <strong>${banner.title}</strong>
+          <p>${banner.text}</p>
+        </div>
+        <button class="section-intro-dismiss" onclick="App.dismissBanner('${section}')" title="Got it">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+    `;
+  },
+
+  dismissBanner(section) {
+    const dismissed = JSON.parse(localStorage.getItem('dismissed_banners') || '[]');
+    if (!dismissed.includes(section)) {
+      dismissed.push(section);
+      localStorage.setItem('dismissed_banners', JSON.stringify(dismissed));
+    }
+    const el = document.getElementById('section-banner');
+    if (el) {
+      el.style.transition = 'opacity 0.3s, transform 0.3s, max-height 0.3s';
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(-8px)';
+      el.style.maxHeight = '0';
+      el.style.overflow = 'hidden';
+      el.style.marginBottom = '0';
+      el.style.padding = '0';
+      setTimeout(() => el.remove(), 300);
+    }
   },
 
   closeModal(e) {
