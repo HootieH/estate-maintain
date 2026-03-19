@@ -19,14 +19,52 @@ const Requests = {
       const counts = { all: requests.length, pending: 0, approved: 0, declined: 0 };
       requests.forEach(r => { if (counts[r.status] !== undefined) counts[r.status]++; });
 
+      // Fetch properties for the portal links
+      const propData = await API.get('/properties').catch(() => []);
+      const properties = Array.isArray(propData) ? propData : (propData.data || propData.properties || []);
+
       container.innerHTML = `
         <div class="page-header">
           <h1>Work Requests <span class="tip-trigger" data-tip="work-request"><i data-lucide="help-circle" class="tip-badge-icon"></i></span></h1>
-          <a href="/request" target="_blank" class="btn btn-secondary">
-            <i data-lucide="external-link"></i> Public Request Page
-          </a>
         </div>
 
+        <!-- Request Portal Links -->
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-header">
+            <h3><i data-lucide="globe" style="width:16px;height:16px;vertical-align:middle;margin-right:6px"></i> Public Request Forms</h3>
+            <span class="text-muted" style="font-size:12px">Share these links with residents — no login needed to submit</span>
+          </div>
+          <div class="card-body">
+            ${properties.length === 0 ? '<div class="empty-state-sm">No properties yet. <a href="#/properties/new">Add a property</a> to generate request form links.</div>' : `
+              <div class="request-portal-grid">
+                ${properties.map(p => {
+                  const url = `${window.location.origin}/request/${p.id}`;
+                  return `
+                    <div class="request-portal-card">
+                      <div class="request-portal-info">
+                        <strong>${p.name}</strong>
+                        <span>${p.address || p.type || ''}</span>
+                      </div>
+                      <div class="request-portal-actions">
+                        <button class="btn btn-sm btn-secondary" onclick="Requests.copyLink('${url}')" title="Copy link">
+                          <i data-lucide="copy"></i>
+                        </button>
+                        <button class="btn btn-sm btn-secondary" onclick="QRCodes.showModal('request', '${p.id}', '${p.name.replace(/'/g, "\\'")} — Request Form', '${(p.address || '').replace(/'/g, "\\'")}')" title="QR Code">
+                          <i data-lucide="qr-code"></i>
+                        </button>
+                        <a href="${url}" target="_blank" class="btn btn-sm btn-primary" title="Open form">
+                          <i data-lucide="external-link"></i> Open
+                        </a>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            `}
+          </div>
+        </div>
+
+        <!-- Incoming Requests -->
         <div class="filters-bar">
           <div class="status-tabs">
             <button class="status-tab ${this._currentTab === 'all' ? 'active' : ''}" onclick="Requests.filterTab('all')">
@@ -430,6 +468,15 @@ const Requests = {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+  },
+
+  async copyLink(url) {
+    try {
+      await navigator.clipboard.writeText(url);
+      App.toast('Link copied to clipboard', 'success');
+    } catch {
+      App.toast('Failed to copy', 'error');
+    }
   },
 
   escapeAttr(str) {

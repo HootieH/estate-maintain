@@ -2724,3 +2724,54 @@ h1 .tip-badge-icon {
   color: var(--text-muted);
   line-height: 1.4;
 }
+
+/* ============================================
+   Request Portal Cards
+   ============================================ */
+
+.request-portal-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.request-portal-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--bg);
+  border-radius: 10px;
+  gap: 12px;
+  transition: background 0.15s;
+}
+
+.request-portal-card:hover {
+  background: var(--primary-lighter, #DBEAFE);
+}
+
+.request-portal-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.request-portal-info strong {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.request-portal-info span {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.request-portal-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
