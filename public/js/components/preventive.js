@@ -2,6 +2,8 @@ const Preventive = {
   _currentPage: 1,
   _pagination: null,
   _viewMode: 'list',
+  currentFilters: { status: 'all', property: 'all', frequency: 'all', search: '' },
+  _searchTimer: null,
 
   async list(page) {
     this._currentPage = page || 1;
@@ -10,9 +12,22 @@ const Preventive = {
 
     try {
       const params = new URLSearchParams({ page: this._currentPage, limit: 25 });
-      const data = await API.get(`/preventive?${params.toString()}`);
+      const f = this.currentFilters;
+      if (f.status !== 'all') params.set('status', f.status);
+      if (f.property !== 'all') params.set('property_id', f.property);
+      if (f.frequency !== 'all') params.set('frequency', f.frequency);
+      if (f.search) params.set('search', f.search);
+
+      const [data, propData] = await Promise.all([
+        API.get(`/preventive?${params.toString()}`),
+        API.get('/properties').catch(() => [])
+      ]);
       const { items: schedules, pagination } = Pagination.extract(data, 'schedules');
       this._pagination = pagination;
+      const properties = Array.isArray(propData) ? propData : (propData.data || propData.properties || []);
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
       container.innerHTML = `
         <div class="page-header">
@@ -20,6 +35,32 @@ const Preventive = {
           <button class="btn btn-primary" onclick="Router.navigate('#/preventive/new')">
             <i data-lucide="plus"></i> New Schedule
           </button>
+        </div>
+
+        <div class="filters-bar">
+          <div class="status-tabs">
+            <button class="status-tab ${f.status === 'all' ? 'active' : ''}" onclick="Preventive.filterStatus(this, 'all')">All</button>
+            <button class="status-tab ${f.status === 'active' ? 'active' : ''}" onclick="Preventive.filterStatus(this, 'active')">Active</button>
+            <button class="status-tab ${f.status === 'inactive' ? 'active' : ''}" onclick="Preventive.filterStatus(this, 'inactive')">Inactive</button>
+            <button class="status-tab ${f.status === 'overdue' ? 'active' : ''}" onclick="Preventive.filterStatus(this, 'overdue')">Overdue</button>
+          </div>
+          <div class="filter-controls">
+            <select class="form-control form-control-sm" onchange="Preventive.filterFrequency(this.value)">
+              <option value="all" ${f.frequency === 'all' ? 'selected' : ''}>All Frequencies</option>
+              <option value="daily" ${f.frequency === 'daily' ? 'selected' : ''}>Daily</option>
+              <option value="weekly" ${f.frequency === 'weekly' ? 'selected' : ''}>Weekly</option>
+              <option value="biweekly" ${f.frequency === 'biweekly' ? 'selected' : ''}>Bi-Weekly</option>
+              <option value="monthly" ${f.frequency === 'monthly' ? 'selected' : ''}>Monthly</option>
+              <option value="quarterly" ${f.frequency === 'quarterly' ? 'selected' : ''}>Quarterly</option>
+              <option value="semiannual" ${f.frequency === 'semiannual' ? 'selected' : ''}>Semi-Annual</option>
+              <option value="annual" ${f.frequency === 'annual' ? 'selected' : ''}>Annual</option>
+            </select>
+            <select class="form-control form-control-sm" onchange="Preventive.filterProperty(this.value)">
+              <option value="all" ${f.property === 'all' ? 'selected' : ''}>All Properties</option>
+              ${properties.map(p => `<option value="${p.id}" ${f.property === String(p.id) ? 'selected' : ''}>${p.name}</option>`).join('')}
+            </select>
+            <input type="text" class="form-control form-control-sm" placeholder="Search..." value="${f.search}" oninput="Preventive.filterSearch(this.value)">
+          </div>
         </div>
 
         <div class="view-toggle">
@@ -78,6 +119,7 @@ const Preventive = {
                     <th>Asset</th>
                     <th>Property</th>
                     <th>Frequency</th>
+                    <th>Assigned To</th>
                     <th>Next Due</th>
                     <th>Actions</th>
                   </tr>
@@ -85,13 +127,18 @@ const Preventive = {
                 <tbody>
                   ${schedules.map(pm => {
                     const dueClass = Preventive.getDueClass(pm.next_due);
+                    const isOverdue = Preventive.isOverdue(pm.next_due) && pm.is_active;
                     return `
                       <tr class="clickable-row" onclick="Router.navigate('#/preventive/${pm.id}')">
                         <td><strong>${pm.title || pm.name || ''}</strong></td>
                         <td>${pm.asset_name || '-'}</td>
                         <td>${pm.property_name || '-'}</td>
                         <td>${Preventive.formatFrequency(pm.frequency)}</td>
-                        <td><span class="text-${dueClass}">${Dashboard.formatDate(pm.next_due)}</span></td>
+                        <td>${pm.assigned_to_name || pm.team_name || '-'}</td>
+                        <td>
+                          <span class="text-${dueClass}">${Dashboard.formatDate(pm.next_due)}</span>
+                          ${isOverdue ? ' <span class="badge badge-critical" style="font-size:11px">Overdue</span>' : ''}
+                        </td>
                         <td>
                           <button class="btn btn-sm btn-success" onclick="event.stopPropagation(); Preventive.markComplete('${pm.id}')">
                             <i data-lucide="check"></i> Complete
@@ -118,6 +165,38 @@ const Preventive = {
     this.list(page);
   },
 
+  filterStatus(el, status) {
+    el.parentElement.querySelectorAll('.status-tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    this.currentFilters.status = status;
+    this.list(1);
+  },
+
+  filterFrequency(val) {
+    this.currentFilters.frequency = val;
+    this.list(1);
+  },
+
+  filterProperty(val) {
+    this.currentFilters.property = val;
+    this.list(1);
+  },
+
+  filterSearch(val) {
+    this.currentFilters.search = val;
+    clearTimeout(this._searchTimer);
+    this._searchTimer = setTimeout(() => this.list(1), 300);
+  },
+
+  isOverdue(dateStr) {
+    if (!dateStr) return false;
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const due = new Date(dateStr);
+    due.setHours(0, 0, 0, 0);
+    return due < now;
+  },
+
   async detail(params) {
     const container = document.getElementById('main-content');
     container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
@@ -125,6 +204,13 @@ const Preventive = {
     try {
       const pm = await API.get(`/preventive/${params.id}`);
       const dueClass = Preventive.getDueClass(pm.next_due);
+      const history = pm.history || [];
+
+      // Compute compliance rate
+      const totalWOs = history.length;
+      const completedWOs = history.filter(h => h.status === 'completed').length;
+      const complianceRate = totalWOs > 0 ? Math.round((completedWOs / totalWOs) * 100) : null;
+      const complianceColor = complianceRate === null ? 'var(--text-muted)' : complianceRate >= 90 ? '#059669' : complianceRate >= 70 ? '#D97706' : '#DC2626';
 
       container.innerHTML = `
         <div class="page-header">
@@ -148,6 +234,18 @@ const Preventive = {
           </div>
         </div>
 
+        ${complianceRate !== null ? `
+        <div class="stat-card" style="margin-bottom:16px;display:inline-flex;align-items:center;gap:12px;padding:12px 20px">
+          <div class="stat-icon" style="background:${complianceColor}18;color:${complianceColor}">
+            <i data-lucide="target"></i>
+          </div>
+          <div class="stat-info">
+            <div class="stat-value" style="color:${complianceColor}">${complianceRate}%</div>
+            <div class="stat-label">Compliance Rate (${completedWOs}/${totalWOs} completed)</div>
+          </div>
+        </div>
+        ` : ''}
+
         <div class="detail-grid">
           <div class="card">
             <div class="card-header"><h3>Schedule Details</h3></div>
@@ -166,6 +264,14 @@ const Preventive = {
                   <p>${Preventive.formatFrequency(pm.frequency)}</p>
                 </div>
                 <div class="detail-field">
+                  <label>Priority</label>
+                  <p>${pm.priority ? `<span class="badge badge-${pm.priority}">${pm.priority}</span>` : '-'}</p>
+                </div>
+                <div class="detail-field">
+                  <label>Category</label>
+                  <p>${pm.category || '-'}</p>
+                </div>
+                <div class="detail-field">
                   <label>Next Due</label>
                   <p><span class="text-${dueClass}">${Dashboard.formatDate(pm.next_due)}</span></p>
                 </div>
@@ -176,6 +282,18 @@ const Preventive = {
                 <div class="detail-field">
                   <label>Assigned To</label>
                   <p>${pm.assigned_to_name || '-'}</p>
+                </div>
+                <div class="detail-field">
+                  <label>Team</label>
+                  <p>${pm.team_name || '-'}</p>
+                </div>
+                <div class="detail-field">
+                  <label>Estimated Cost</label>
+                  <p>${pm.estimated_cost ? '$' + Number(pm.estimated_cost).toFixed(2) : '-'}</p>
+                </div>
+                <div class="detail-field">
+                  <label>Estimated Hours</label>
+                  <p>${pm.estimated_hours ? pm.estimated_hours + ' hrs' : '-'}</p>
                 </div>
                 <div class="detail-field">
                   <label>Procedure</label>
@@ -193,17 +311,27 @@ const Preventive = {
         <div class="card">
           <div class="card-header"><h3>Completion History</h3></div>
           <div class="card-body">
-            ${(pm.history && pm.history.length > 0) ? `
+            ${history.length > 0 ? `
               <table class="table">
                 <thead>
-                  <tr><th>Completed Date</th><th>Completed By</th><th>Notes</th></tr>
+                  <tr>
+                    <th>Work Order</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Completed</th>
+                    <th>Assigned To</th>
+                    <th>Signed Off By</th>
+                  </tr>
                 </thead>
                 <tbody>
-                  ${pm.history.map(h => `
-                    <tr>
+                  ${history.map(h => `
+                    <tr class="clickable-row" onclick="Router.navigate('#/workorders/${h.id}')">
+                      <td><strong>${h.title || ''}</strong></td>
+                      <td><span class="badge badge-status-${(h.status || '').replace(/\s+/g, '_')}">${h.status || '-'}</span></td>
+                      <td>${Dashboard.formatDate(h.created_at)}</td>
                       <td>${Dashboard.formatDate(h.completed_at)}</td>
-                      <td>${h.completed_by_name || '-'}</td>
-                      <td>${h.notes || '-'}</td>
+                      <td>${h.assigned_to_name || h.assigned_user_name || '-'}</td>
+                      <td>${h.signed_off_by_name || '-'}</td>
                     </tr>
                   `).join('')}
                 </tbody>
@@ -275,6 +403,21 @@ const Preventive = {
               </div>
               <div class="form-row">
                 <div class="form-group">
+                  <label for="pm-priority">Priority</label>
+                  <select id="pm-priority" class="form-control">
+                    <option value="low">Low</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="pm-category">Category</label>
+                  <input type="text" id="pm-category" class="form-control" placeholder="e.g., HVAC, Plumbing, Electrical">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
                   <label for="pm-assigned">Assign To</label>
                   <select id="pm-assigned" class="form-control">
                     <option value="">Unassigned</option>
@@ -306,6 +449,16 @@ const Preventive = {
                 <div class="form-group">
                   <label for="pm-next-due">Next Due Date *</label>
                   <input type="date" id="pm-next-due" class="form-control" required>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="pm-est-cost">Estimated Cost ($)</label>
+                  <input type="number" id="pm-est-cost" class="form-control" step="0.01" min="0" placeholder="e.g., 250.00">
+                </div>
+                <div class="form-group">
+                  <label for="pm-est-hours">Estimated Hours</label>
+                  <input type="number" id="pm-est-hours" class="form-control" step="0.5" min="0" placeholder="e.g., 2.5">
                 </div>
               </div>
               <div id="pm-form-error" class="form-error" style="display:none"></div>
@@ -349,7 +502,11 @@ const Preventive = {
         assigned_to: document.getElementById('pm-assigned').value || null,
         frequency: document.getElementById('pm-frequency').value,
         next_due: document.getElementById('pm-next-due').value,
-        procedure_id: document.getElementById('pm-procedure').value || null
+        procedure_id: document.getElementById('pm-procedure').value || null,
+        priority: document.getElementById('pm-priority').value,
+        category: document.getElementById('pm-category').value || null,
+        estimated_cost: document.getElementById('pm-est-cost').value ? parseFloat(document.getElementById('pm-est-cost').value) : null,
+        estimated_hours: document.getElementById('pm-est-hours').value ? parseFloat(document.getElementById('pm-est-hours').value) : null
       };
       const result = await API.post('/preventive', body);
       App.toast('Schedule created', 'success');
@@ -378,6 +535,7 @@ const Preventive = {
       const users = Array.isArray(userData) ? userData : (userData.data || userData.users || []);
       const procedures = Array.isArray(procData) ? procData : (procData.data || procData.procedures || []);
       const frequencies = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'semiannual', 'annual'];
+      const priorities = ['low', 'medium', 'high', 'critical'];
 
       container.innerHTML = `
         <div class="page-header">
@@ -415,6 +573,18 @@ const Preventive = {
                   </select>
                 </div>
               </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="pm-priority">Priority</label>
+                  <select id="pm-priority" class="form-control">
+                    ${priorities.map(p => `<option value="${p}" ${pm.priority === p ? 'selected' : ''}>${p.charAt(0).toUpperCase() + p.slice(1)}</option>`).join('')}
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="pm-category">Category</label>
+                  <input type="text" id="pm-category" class="form-control" value="${pm.category || ''}" placeholder="e.g., HVAC, Plumbing, Electrical">
+                </div>
+              </div>
               <div class="form-group">
                 <label for="pm-procedure">Procedure <span class="tip-trigger" data-tip="procedure"><i data-lucide="help-circle" class="tip-badge-icon"></i></span></label>
                 <select id="pm-procedure" class="form-control">
@@ -433,6 +603,16 @@ const Preventive = {
                 <div class="form-group">
                   <label for="pm-next-due">Next Due Date *</label>
                   <input type="date" id="pm-next-due" class="form-control" required value="${pm.next_due ? pm.next_due.split('T')[0] : ''}">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="pm-est-cost">Estimated Cost ($)</label>
+                  <input type="number" id="pm-est-cost" class="form-control" step="0.01" min="0" value="${pm.estimated_cost || ''}">
+                </div>
+                <div class="form-group">
+                  <label for="pm-est-hours">Estimated Hours</label>
+                  <input type="number" id="pm-est-hours" class="form-control" step="0.5" min="0" value="${pm.estimated_hours || ''}">
                 </div>
               </div>
               <div id="pm-form-error" class="form-error" style="display:none"></div>
@@ -466,7 +646,11 @@ const Preventive = {
         assigned_to: document.getElementById('pm-assigned').value || null,
         frequency: document.getElementById('pm-frequency').value,
         next_due: document.getElementById('pm-next-due').value,
-        procedure_id: document.getElementById('pm-procedure').value || null
+        procedure_id: document.getElementById('pm-procedure').value || null,
+        priority: document.getElementById('pm-priority').value,
+        category: document.getElementById('pm-category').value || null,
+        estimated_cost: document.getElementById('pm-est-cost').value ? parseFloat(document.getElementById('pm-est-cost').value) : null,
+        estimated_hours: document.getElementById('pm-est-hours').value ? parseFloat(document.getElementById('pm-est-hours').value) : null
       };
       await API.put(`/preventive/${id}`, body);
       App.toast('Schedule updated', 'success');

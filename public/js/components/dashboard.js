@@ -76,6 +76,22 @@ const Dashboard = {
               <div class="stat-label">Assets Down</div>
             </div>
           </div>
+          ${(() => {
+            const pmc = s.pm_compliance || { rate: 100, completed: 0, total: 0 };
+            const pmcColor = pmc.rate >= 90 ? '#059669' : pmc.rate >= 70 ? '#D97706' : '#DC2626';
+            const pmcBg = pmc.rate >= 90 ? '#D1FAE5' : pmc.rate >= 70 ? '#FEF3C7' : '#FEE2E2';
+            return `
+              <div class="stat-card">
+                <div class="stat-icon" style="background: ${pmcBg}; color: ${pmcColor};">
+                  <i data-lucide="shield-check"></i>
+                </div>
+                <div class="stat-info">
+                  <div class="stat-value" style="color:${pmcColor}">${pmc.rate}%</div>
+                  <div class="stat-label">PM Compliance (${pmc.completed}/${pmc.total})</div>
+                </div>
+              </div>
+            `;
+          })()}
         </div>
 
         ${(s.createdTrend && s.createdTrend.length > 1) ? `
@@ -174,33 +190,45 @@ const Dashboard = {
 
           <div class="card">
             <div class="card-header">
-              <h3>Upcoming Preventive Maintenance</h3>
+              <h3>Preventive Maintenance</h3>
               <a href="#/preventive" class="btn btn-sm btn-secondary">View All</a>
             </div>
             <div class="card-body">
-              ${pmList.length === 0 ? '<div class="empty-state-sm">No upcoming maintenance in the next 7 days</div>' : `
-                <table class="table">
-                  <thead>
-                    <tr>
-                      <th>Task</th>
-                      <th>Asset</th>
-                      <th>Due</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${pmList.slice(0, 5).map(pm => {
-                      const dueClass = Dashboard.getDueClass(pm.next_due);
-                      return `
-                        <tr class="clickable-row" onclick="Router.navigate('#/preventive/${pm.id}')">
-                          <td>${pm.title || pm.name || ''}</td>
-                          <td>${pm.asset_name || ''}</td>
-                          <td><span class="text-${dueClass}">${Dashboard.formatDate(pm.next_due)}</span></td>
-                        </tr>
-                      `;
-                    }).join('')}
-                  </tbody>
-                </table>
-              `}
+              ${(() => {
+                const myPmTasks = s.my_pm_tasks || [];
+                const hasSchedules = pmList.length > 0;
+                const hasTasks = myPmTasks.length > 0;
+                if (!hasSchedules && !hasTasks) return '<div class="empty-state-sm">No upcoming PM schedules or tasks</div>';
+                let html = '';
+                if (hasTasks) {
+                  html += '<div style="margin-bottom:8px"><strong style="font-size:13px;color:var(--text-muted)">My Open PM Work Orders</strong></div>';
+                  html += '<table class="table"><thead><tr><th>Task</th><th>Priority</th><th>Status</th><th>Due</th></tr></thead><tbody>';
+                  html += myPmTasks.slice(0, 5).map(t => {
+                    const dueClass = Dashboard.getDueClass(t.due_date);
+                    return '<tr class="clickable-row" onclick="Router.navigate(\'#/workorders/' + t.id + '\')">' +
+                      '<td>' + t.title + '</td>' +
+                      '<td><span class="badge badge-' + t.priority + '">' + t.priority + '</span></td>' +
+                      '<td><span class="badge badge-status-' + (t.status || '').replace(/\s+/g, '_') + '">' + t.status + '</span></td>' +
+                      '<td><span class="text-' + dueClass + '">' + Dashboard.formatDate(t.due_date) + '</span></td>' +
+                    '</tr>';
+                  }).join('');
+                  html += '</tbody></table>';
+                }
+                if (hasSchedules) {
+                  if (hasTasks) html += '<div style="margin:12px 0 8px 0;border-top:1px solid var(--border);padding-top:12px"><strong style="font-size:13px;color:var(--text-muted)">Upcoming Schedules (Next 7 Days)</strong></div>';
+                  html += '<table class="table"><thead><tr><th>Task</th><th>Asset</th><th>Due</th></tr></thead><tbody>';
+                  html += pmList.slice(0, 5).map(pm => {
+                    const dueClass = Dashboard.getDueClass(pm.next_due);
+                    return '<tr class="clickable-row" onclick="Router.navigate(\'#/preventive/' + pm.id + '\')">' +
+                      '<td>' + (pm.title || pm.name || '') + '</td>' +
+                      '<td>' + (pm.asset_name || '') + '</td>' +
+                      '<td><span class="text-' + dueClass + '">' + Dashboard.formatDate(pm.next_due) + '</span></td>' +
+                    '</tr>';
+                  }).join('');
+                  html += '</tbody></table>';
+                }
+                return html;
+              })()}
             </div>
           </div>
 

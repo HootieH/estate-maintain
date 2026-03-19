@@ -193,17 +193,21 @@ const WorkOrders = {
       if (empty) empty.style.display = 'block';
     } else {
       if (empty) empty.style.display = 'none';
-      tbody.innerHTML = filtered.map(wo => `
-        <tr class="clickable-row" onclick="Router.navigate('#/workorders/${wo.id}')">
-          <td onclick="event.stopPropagation()"><input type="checkbox" class="wo-select" value="${wo.id}" onchange="WorkOrders.updateBulkBar()"></td>
-          <td><strong>${wo.title}</strong></td>
-          <td>${wo.property_name || '-'}</td>
-          <td><span class="badge badge-${wo.priority}">${wo.priority}</span></td>
-          <td><span class="badge badge-status-${(wo.status || '').replace(/\s+/g, '_')}">${wo.status}</span></td>
-          <td>${wo.assigned_to_name || '-'}</td>
-          <td>${Dashboard.formatDate(wo.due_date)}</td>
-        </tr>
-      `).join('');
+      tbody.innerHTML = filtered.map(wo => {
+        const pp = wo.procedure_progress;
+        const progressHtml = pp ? `<span class="badge" style="font-size:11px;background:var(--bg-secondary);color:var(--text-muted);margin-left:4px" title="Procedure progress">${pp.completed}/${pp.total}</span>` : '';
+        return `
+          <tr class="clickable-row" onclick="Router.navigate('#/workorders/${wo.id}')">
+            <td onclick="event.stopPropagation()"><input type="checkbox" class="wo-select" value="${wo.id}" onchange="WorkOrders.updateBulkBar()"></td>
+            <td><strong>${wo.title}</strong>${progressHtml}</td>
+            <td>${wo.property_name || '-'}</td>
+            <td><span class="badge badge-${wo.priority}">${wo.priority}</span></td>
+            <td><span class="badge badge-status-${(wo.status || '').replace(/\s+/g, '_')}">${wo.status}</span></td>
+            <td>${wo.assigned_to_name || wo.assigned_user_name || '-'}</td>
+            <td>${Dashboard.formatDate(wo.due_date)}</td>
+          </tr>
+        `;
+      }).join('');
     }
   },
 
@@ -226,6 +230,11 @@ const WorkOrders = {
             <span class="badge badge-status-${(wo.status || '').replace(/\s+/g, '_')}">${wo.status}</span>
           </div>
           <div class="page-header-actions">
+            ${wo.status === 'open' ? `
+              <button class="btn btn-success" onclick="WorkOrders.startWork('${params.id}')" style="font-weight:600">
+                <i data-lucide="play"></i> Start Work
+              </button>
+            ` : ''}
             <button class="btn btn-secondary" onclick="WorkOrders.duplicate('${params.id}')">
               <i data-lucide="copy"></i> Duplicate
             </button>
@@ -248,6 +257,15 @@ const WorkOrders = {
           </div>
         </div>
 
+        ${wo.preventive_schedule_id ? `
+        <div class="card" style="margin-bottom:16px;background:var(--bg-secondary)">
+          <div class="card-body" style="padding:12px 16px;display:flex;align-items:center;gap:8px">
+            <i data-lucide="calendar-clock" style="width:16px;height:16px;color:var(--primary)"></i>
+            <span>Generated from PM schedule: <a href="#/preventive/${wo.preventive_schedule_id}"><strong>${wo.preventive_schedule_title || 'View Schedule'}</strong></a></span>
+          </div>
+        </div>
+        ` : ''}
+
         <div class="detail-grid">
           <div class="card">
             <div class="card-header"><h3>Details</h3></div>
@@ -268,7 +286,7 @@ const WorkOrders = {
                 <div class="detail-field">
                   <label>Status</label>
                   <p>
-                    <select class="form-control form-control-sm inline-select" onchange="WorkOrders.updateStatus('${params.id}', this.value)">
+                    <select class="form-control form-control-sm inline-select" id="wo-status-select" onchange="WorkOrders.handleStatusChange('${params.id}', this.value, this)">
                       <option value="open" ${wo.status === 'open' ? 'selected' : ''}>Open</option>
                       <option value="in_progress" ${wo.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
                       <option value="on_hold" ${wo.status === 'on_hold' ? 'selected' : ''}>On Hold</option>
@@ -278,7 +296,7 @@ const WorkOrders = {
                 </div>
                 <div class="detail-field">
                   <label>Assigned To</label>
-                  <p>${wo.assigned_to_name || '-'}</p>
+                  <p>${wo.assigned_to_name || wo.assigned_user_name || '-'}</p>
                 </div>
                 <div class="detail-field">
                   <label>Due Date</label>
@@ -712,6 +730,70 @@ const WorkOrders = {
     }
   },
 
+  async startWork(id) {
+    try {
+      await API.put(`/workorders/${id}`, { status: 'in_progress' });
+      App.toast('Work started', 'success');
+      WorkOrders.detail({ id });
+    } catch (e) {
+      App.toast(e.message, 'error');
+    }
+  },
+
+  async handleStatusChange(id, newStatus, selectEl) {
+    if (newStatus === 'completed') {
+      // Check for incomplete required procedure steps
+      try {
+        const wops = await API.get(`/procedures/workorder/${id}`);
+        if (wops && wops.length > 0) {
+          const incompleteRequired = [];
+          for (const wop of wops) {
+            for (const step of (wop.steps || [])) {
+              if (step.is_required && step.response_value === null) {
+                incompleteRequired.push(step.title);
+              }
+            }
+          }
+          if (incompleteRequired.length > 0) {
+            const overlay = document.getElementById('modal-overlay');
+            overlay.querySelector('.modal-title').textContent = 'Incomplete Required Steps';
+            overlay.querySelector('.modal-body').innerHTML = `
+              <p style="margin-bottom:12px"><strong>${incompleteRequired.length} required checklist step${incompleteRequired.length > 1 ? 's are' : ' is'} not complete:</strong></p>
+              <ul style="margin:0 0 16px 20px;color:var(--text-muted)">
+                ${incompleteRequired.map(s => `<li>${s}</li>`).join('')}
+              </ul>
+              <p>Complete these steps before marking this work order done, or force-complete anyway.</p>
+            `;
+            overlay.querySelector('.modal-footer').innerHTML = `
+              <button class="btn btn-secondary" onclick="WorkOrders.revertStatusSelect('${id}'); App.closeModal()">Cancel</button>
+              <button class="btn btn-danger" onclick="WorkOrders.forceComplete('${id}'); App.closeModal()">Complete Anyway</button>
+            `;
+            overlay.style.display = 'flex';
+            return;
+          }
+        }
+      } catch (_) {
+        // If we can't check procedures, allow the status change
+      }
+    }
+    this.updateStatus(id, newStatus);
+  },
+
+  revertStatusSelect(id) {
+    // Revert dropdown to previous value by reloading detail
+    WorkOrders.detail({ id });
+  },
+
+  async forceComplete(id) {
+    try {
+      await API.put(`/workorders/${id}`, { status: 'completed' });
+      App.toast('Work order completed', 'success');
+      WorkOrders.detail({ id });
+    } catch (e) {
+      App.toast(e.message, 'error');
+    }
+  },
+
   async addComment(e, id) {
     e.preventDefault();
     const text = document.getElementById('comment-text').value;
@@ -843,7 +925,7 @@ const WorkOrders = {
                     </div>
                     <div class="kanban-card-title">${wo.title}</div>
                     ${wo.property_name ? `<div class="kanban-card-meta"><i data-lucide="building-2" class="icon-xs"></i> ${wo.property_name}</div>` : ''}
-                    ${wo.assigned_to_name ? `<div class="kanban-card-meta"><i data-lucide="user" class="icon-xs"></i> ${wo.assigned_to_name}</div>` : ''}
+                    ${(wo.assigned_to_name || wo.assigned_user_name) ? `<div class="kanban-card-meta"><i data-lucide="user" class="icon-xs"></i> ${wo.assigned_to_name || wo.assigned_user_name}</div>` : ''}
                     ${wo.due_date ? `<div class="kanban-card-meta"><i data-lucide="calendar" class="icon-xs"></i> ${Dashboard.formatDate(wo.due_date)}</div>` : ''}
                   </div>
                 `).join('')}
