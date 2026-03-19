@@ -93,6 +93,35 @@ router.get('/:id', (req, res) => {
       project.awarded_bid = awarded || null;
     }
 
+    // Milestones
+    const milestones = db.prepare('SELECT * FROM project_milestones WHERE project_id = ? ORDER BY sort_order, due_date').all(req.params.id);
+    project.milestones = milestones;
+
+    // Change orders
+    const changeOrders = db.prepare('SELECT co.*, u.name AS created_by_name FROM change_orders co LEFT JOIN users u ON co.created_by = u.id WHERE co.project_id = ? ORDER BY co.created_at DESC').all(req.params.id);
+    project.change_orders = changeOrders;
+    project.change_order_total = changeOrders.filter(co => co.status === 'approved').reduce((s, co) => s + co.amount, 0);
+
+    // Invitations
+    const invitations = db.prepare('SELECT bi.*, v.name AS vendor_name, v.specialty AS vendor_specialty FROM bid_invitations bi JOIN vendors v ON bi.vendor_id = v.id WHERE bi.project_id = ?').all(req.params.id);
+    project.invitations = invitations;
+
+    // Bid scores summary per bid
+    for (const bid of bids) {
+      const scores = db.prepare('SELECT criterion, AVG(score) AS avg_score FROM bid_scores WHERE bid_id = ? GROUP BY criterion').all(bid.id);
+      bid.scores = scores;
+      bid.avg_score = scores.length > 0 ? Math.round(scores.reduce((s, sc) => s + sc.avg_score, 0) / scores.length * 10) / 10 : null;
+      // Cost per day
+      bid.cost_per_day = bid.timeline_days ? Math.round(bid.total_amount / bid.timeline_days) : null;
+      // Comment count
+      const cc = db.prepare('SELECT COUNT(*) AS c FROM bid_comments WHERE bid_id = ?').get(bid.id);
+      bid.comment_count = cc.c;
+    }
+
+    // Activity
+    const activity = db.prepare("SELECT al.*, u.name AS user_name FROM activity_log al LEFT JOIN users u ON al.user_id = u.id WHERE al.entity_type = 'project' AND al.entity_id = ? ORDER BY al.created_at DESC LIMIT 10").all(req.params.id);
+    project.activity = activity;
+
     res.json(project);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch project', details: err.message });
@@ -362,6 +391,291 @@ router.get('/:id/compare', (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to generate comparison', details: err.message });
+  }
+});
+
+// POST /:id/status - Advance project status
+router.post('/:id/status', requireRole('admin', 'manager'), (req, res) => {
+  try {
+    const { status } = req.body;
+    const validStatuses = ['draft', 'bidding', 'evaluating', 'awarded', 'in_progress', 'completed', 'cancelled'];
+    if (!validStatuses.includes(status)) return res.status(400).json({ error: 'Invalid status' });
+
+    db.prepare('UPDATE projects SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(status, req.params.id);
+    logActivity('project', parseInt(req.params.id), 'status_changed', `Status changed to ${status}`, req.user.id);
+    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+    res.json(project);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update status', details: err.message });
+  }
+});
+
+// POST /:id/progress - Update project progress percentage
+router.post('/:id/progress', requireRole('admin', 'manager'), (req, res) => {
+  try {
+    const { progress } = req.body;
+    db.prepare('UPDATE projects SET progress = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(Math.min(100, Math.max(0, progress || 0)), req.params.id);
+    res.json({ message: 'Progress updated' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update progress', details: err.message });
+  }
+});
+
+// --- Bid Comments ---
+router.post('/:id/bids/:bidId/comments', (req, res) => {
+  try {
+    const { comment } = req.body;
+    if (!comment) return res.status(400).json({ error: 'Comment is required' });
+    const result = db.prepare('INSERT INTO bid_comments (bid_id, project_id, user_id, comment) VALUES (?, ?, ?, ?)').run(req.params.bidId, req.params.id, req.user.id, comment);
+    const entry = db.prepare('SELECT bc.*, u.name AS user_name FROM bid_comments bc JOIN users u ON bc.user_id = u.id WHERE bc.id = ?').get(result.lastInsertRowid);
+    res.status(201).json(entry);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add comment', details: err.message });
+  }
+});
+
+router.get('/:id/bids/:bidId/comments', (req, res) => {
+  try {
+    const comments = db.prepare('SELECT bc.*, u.name AS user_name, u.avatar_color FROM bid_comments bc JOIN users u ON bc.user_id = u.id WHERE bc.bid_id = ? ORDER BY bc.created_at ASC').all(req.params.bidId);
+    res.json(comments);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch comments', details: err.message });
+  }
+});
+
+// --- Bid Scoring ---
+router.post('/:id/bids/:bidId/scores', (req, res) => {
+  try {
+    const { scores } = req.body; // [{criterion, score, notes}]
+    if (!scores || !Array.isArray(scores)) return res.status(400).json({ error: 'scores array is required' });
+
+    const upsert = db.prepare('INSERT INTO bid_scores (bid_id, criterion, score, notes, scored_by) VALUES (?, ?, ?, ?, ?) ON CONFLICT(bid_id, criterion, scored_by) DO UPDATE SET score = ?, notes = ?');
+    for (const s of scores) {
+      upsert.run(req.params.bidId, s.criterion, s.score, s.notes || null, req.user.id, s.score, s.notes || null);
+    }
+
+    // Calculate average score and update bid
+    const avg = db.prepare('SELECT AVG(score) AS avg_score FROM bid_scores WHERE bid_id = ?').get(req.params.bidId);
+    db.prepare('UPDATE bids SET score = ? WHERE id = ?').run(Math.round((avg.avg_score || 0) * 10) / 10, req.params.bidId);
+
+    res.json({ message: 'Scores saved', averageScore: avg.avg_score });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to save scores', details: err.message });
+  }
+});
+
+router.get('/:id/bids/:bidId/scores', (req, res) => {
+  try {
+    const scores = db.prepare('SELECT bs.*, u.name AS scored_by_name FROM bid_scores bs LEFT JOIN users u ON bs.scored_by = u.id WHERE bs.bid_id = ?').all(req.params.bidId);
+    res.json(scores);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch scores', details: err.message });
+  }
+});
+
+// --- Bid Reject with Reason ---
+router.post('/:id/bids/:bidId/reject', requireRole('admin', 'manager'), (req, res) => {
+  try {
+    const { reason } = req.body;
+    db.prepare("UPDATE bids SET status = 'rejected', rejection_reason = ? WHERE id = ? AND project_id = ?").run(reason || null, req.params.bidId, req.params.id);
+    logActivity('project', parseInt(req.params.id), 'bid_rejected', `Bid ${req.params.bidId} rejected${reason ? ': ' + reason : ''}`, req.user.id);
+    const bid = db.prepare('SELECT * FROM bids WHERE id = ?').get(req.params.bidId);
+    res.json(bid);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to reject bid', details: err.message });
+  }
+});
+
+// --- Bid Withdraw ---
+router.post('/:id/bids/:bidId/withdraw', (req, res) => {
+  try {
+    db.prepare("UPDATE bids SET status = 'withdrawn' WHERE id = ? AND project_id = ?").run(req.params.bidId, req.params.id);
+    logActivity('project', parseInt(req.params.id), 'bid_withdrawn', `Bid ${req.params.bidId} withdrawn`, req.user.id);
+    res.json({ message: 'Bid withdrawn' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to withdraw bid', details: err.message });
+  }
+});
+
+// --- Milestones ---
+router.get('/:id/milestones', (req, res) => {
+  try {
+    const milestones = db.prepare('SELECT pm.*, u.name AS completed_by_name FROM project_milestones pm LEFT JOIN users u ON pm.completed_by = u.id WHERE pm.project_id = ? ORDER BY pm.sort_order, pm.due_date').all(req.params.id);
+    res.json(milestones);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch milestones', details: err.message });
+  }
+});
+
+router.post('/:id/milestones', requireRole('admin', 'manager'), (req, res) => {
+  try {
+    const { title, description, due_date, sort_order } = req.body;
+    if (!title) return res.status(400).json({ error: 'Title is required' });
+    const count = db.prepare('SELECT COUNT(*) AS c FROM project_milestones WHERE project_id = ?').get(req.params.id).c;
+    const result = db.prepare('INSERT INTO project_milestones (project_id, title, description, due_date, sort_order) VALUES (?, ?, ?, ?, ?)').run(req.params.id, title, description || null, due_date || null, sort_order !== undefined ? sort_order : count);
+    const milestone = db.prepare('SELECT * FROM project_milestones WHERE id = ?').get(result.lastInsertRowid);
+    res.status(201).json(milestone);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create milestone', details: err.message });
+  }
+});
+
+router.post('/:id/milestones/:msId/complete', (req, res) => {
+  try {
+    db.prepare('UPDATE project_milestones SET completed_at = CURRENT_TIMESTAMP, completed_by = ? WHERE id = ? AND project_id = ?').run(req.user.id, req.params.msId, req.params.id);
+    const ms = db.prepare('SELECT * FROM project_milestones WHERE id = ?').get(req.params.msId);
+    res.json(ms);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to complete milestone', details: err.message });
+  }
+});
+
+// --- Change Orders ---
+router.get('/:id/change-orders', (req, res) => {
+  try {
+    const orders = db.prepare('SELECT co.*, u.name AS created_by_name, au.name AS approved_by_name FROM change_orders co LEFT JOIN users u ON co.created_by = u.id LEFT JOIN users au ON co.approved_by = au.id WHERE co.project_id = ? ORDER BY co.created_at DESC').all(req.params.id);
+    res.json(orders);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch change orders', details: err.message });
+  }
+});
+
+router.post('/:id/change-orders', requireRole('admin', 'manager'), (req, res) => {
+  try {
+    const { title, description, amount } = req.body;
+    if (!title) return res.status(400).json({ error: 'Title is required' });
+    const result = db.prepare('INSERT INTO change_orders (project_id, title, description, amount, created_by) VALUES (?, ?, ?, ?, ?)').run(req.params.id, title, description || null, amount || 0, req.user.id);
+    logActivity('project', parseInt(req.params.id), 'change_order', `Change order "${title}" ($${(amount || 0).toFixed(2)})`, req.user.id);
+    const co = db.prepare('SELECT * FROM change_orders WHERE id = ?').get(result.lastInsertRowid);
+    res.status(201).json(co);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create change order', details: err.message });
+  }
+});
+
+router.post('/:id/change-orders/:coId/approve', requireRole('admin', 'manager'), (req, res) => {
+  try {
+    db.prepare("UPDATE change_orders SET status = 'approved', approved_by = ?, approved_at = CURRENT_TIMESTAMP WHERE id = ?").run(req.user.id, req.params.coId);
+    res.json({ message: 'Change order approved' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to approve change order', details: err.message });
+  }
+});
+
+// --- Bid Invitations ---
+router.post('/:id/invite', requireRole('admin', 'manager'), (req, res) => {
+  try {
+    const { vendor_ids } = req.body;
+    if (!vendor_ids || !Array.isArray(vendor_ids)) return res.status(400).json({ error: 'vendor_ids array required' });
+    const stmt = db.prepare('INSERT OR IGNORE INTO bid_invitations (project_id, vendor_id) VALUES (?, ?)');
+    let invited = 0;
+    for (const vid of vendor_ids) {
+      const r = stmt.run(req.params.id, vid);
+      if (r.changes > 0) invited++;
+    }
+    if (invited > 0) {
+      db.prepare("UPDATE projects SET status = CASE WHEN status = 'draft' THEN 'bidding' ELSE status END, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(req.params.id);
+    }
+    logActivity('project', parseInt(req.params.id), 'vendors_invited', `${invited} vendors invited to bid`, req.user.id);
+    res.json({ invited });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to invite vendors', details: err.message });
+  }
+});
+
+router.get('/:id/invitations', (req, res) => {
+  try {
+    const invitations = db.prepare('SELECT bi.*, v.name AS vendor_name, v.email AS vendor_email, v.phone AS vendor_phone, v.specialty AS vendor_specialty FROM bid_invitations bi JOIN vendors v ON bi.vendor_id = v.id WHERE bi.project_id = ? ORDER BY bi.invited_at DESC').all(req.params.id);
+    res.json(invitations);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch invitations', details: err.message });
+  }
+});
+
+// --- Duplicate Bid ---
+router.post('/:id/bids/:bidId/duplicate', requireRole('admin', 'manager'), (req, res) => {
+  try {
+    const bid = db.prepare('SELECT * FROM bids WHERE id = ? AND project_id = ?').get(req.params.bidId, req.params.id);
+    if (!bid) return res.status(404).json({ error: 'Bid not found' });
+    const items = db.prepare('SELECT * FROM bid_items WHERE bid_id = ?').all(bid.id);
+
+    const result = db.prepare(`
+      INSERT INTO bids (project_id, vendor_id, status, total_amount, timeline_days, start_date, completion_date, warranty_terms, payment_terms, inclusions, exclusions, notes, revised_from_id, created_by)
+      VALUES (?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(bid.project_id, bid.vendor_id, bid.total_amount, bid.timeline_days, bid.start_date, bid.completion_date, bid.warranty_terms, bid.payment_terms, bid.inclusions, bid.exclusions, `[Revision of bid #${bid.id}] ${bid.notes || ''}`, bid.id, req.user.id);
+
+    const newBidId = result.lastInsertRowid;
+    const insertItem = db.prepare('INSERT INTO bid_items (bid_id, category, description, quantity, unit, unit_cost, amount, notes, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    for (const item of items) {
+      insertItem.run(newBidId, item.category, item.description, item.quantity, item.unit, item.unit_cost, item.amount, item.notes, item.sort_order);
+    }
+
+    const newBid = db.prepare('SELECT * FROM bids WHERE id = ?').get(newBidId);
+    newBid.items = db.prepare('SELECT * FROM bid_items WHERE bid_id = ?').all(newBidId);
+    res.status(201).json(newBid);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to duplicate bid', details: err.message });
+  }
+});
+
+// --- Project Activity Feed ---
+router.get('/:id/activity', (req, res) => {
+  try {
+    const activity = db.prepare("SELECT al.*, u.name AS user_name FROM activity_log al LEFT JOIN users u ON al.user_id = u.id WHERE al.entity_type = 'project' AND al.entity_id = ? ORDER BY al.created_at DESC LIMIT 30").all(req.params.id);
+    res.json(activity);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch activity', details: err.message });
+  }
+});
+
+// --- Bid Analytics ---
+router.get('/:id/analytics', (req, res) => {
+  try {
+    const bids = db.prepare("SELECT b.*, v.name AS vendor_name FROM bids b JOIN vendors v ON b.vendor_id = v.id WHERE b.project_id = ? AND b.status IN ('submitted','under_review','selected')").all(req.params.id);
+    if (bids.length === 0) return res.json({ bids: [], stats: {} });
+
+    const amounts = bids.map(b => b.total_amount);
+    const stats = {
+      count: bids.length,
+      lowest: Math.min(...amounts),
+      highest: Math.max(...amounts),
+      average: amounts.reduce((a, b) => a + b, 0) / amounts.length,
+      spread: Math.max(...amounts) - Math.min(...amounts),
+      spreadPercent: Math.round(((Math.max(...amounts) - Math.min(...amounts)) / Math.min(...amounts)) * 100)
+    };
+
+    // Per-category breakdown
+    const categories = ['materials', 'labor', 'equipment', 'permits', 'subcontractors', 'overhead', 'other'];
+    const categoryStats = {};
+    for (const cat of categories) {
+      const vals = [];
+      for (const bid of bids) {
+        const items = db.prepare('SELECT * FROM bid_items WHERE bid_id = ? AND category = ?').all(bid.id, cat);
+        const total = items.reduce((s, i) => s + i.amount, 0);
+        if (total > 0) vals.push({ vendor: bid.vendor_name, amount: total });
+      }
+      if (vals.length > 0) {
+        categoryStats[cat] = {
+          values: vals,
+          lowest: Math.min(...vals.map(v => v.amount)),
+          highest: Math.max(...vals.map(v => v.amount)),
+          average: vals.reduce((s, v) => s + v.amount, 0) / vals.length
+        };
+      }
+    }
+
+    // Cost per day
+    bids.forEach(b => {
+      b.cost_per_day = b.timeline_days ? Math.round(b.total_amount / b.timeline_days) : null;
+    });
+
+    // Change orders total
+    const coTotal = db.prepare("SELECT COALESCE(SUM(amount), 0) AS total FROM change_orders WHERE project_id = ? AND status = 'approved'").get(req.params.id);
+    stats.change_order_total = coTotal.total;
+
+    res.json({ bids, stats, categoryStats });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to generate analytics', details: err.message });
   }
 });
 

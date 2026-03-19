@@ -187,10 +187,14 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    sender_id INTEGER NOT NULL REFERENCES users(id),
-    channel_type TEXT NOT NULL CHECK(channel_type IN ('direct','team','work_order')),
+    sender_id INTEGER REFERENCES users(id),
+    channel_type TEXT NOT NULL,
     channel_id TEXT NOT NULL,
     content TEXT NOT NULL,
+    parent_message_id INTEGER REFERENCES messages(id),
+    message_type TEXT DEFAULT 'user',
+    is_edited INTEGER DEFAULT 0,
+    edited_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -214,7 +218,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS notifications (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id),
-    type TEXT NOT NULL CHECK(type IN ('assignment','status_change','comment','due_soon','overdue','request','pm_due')),
+    type TEXT NOT NULL CHECK(type IN ('assignment','status_change','comment','due_soon','overdue','request','pm_due','mention')),
     title TEXT NOT NULL,
     message TEXT,
     entity_type TEXT,
@@ -651,6 +655,118 @@ db.exec(`
     sort_order INTEGER DEFAULT 0
   );
 
+  CREATE TABLE IF NOT EXISTS bid_comments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bid_id INTEGER NOT NULL REFERENCES bids(id) ON DELETE CASCADE,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    comment TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS project_milestones (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    description TEXT,
+    due_date TEXT,
+    completed_at DATETIME,
+    completed_by INTEGER REFERENCES users(id),
+    sort_order INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS change_orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    description TEXT,
+    amount REAL DEFAULT 0,
+    status TEXT DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+    approved_by INTEGER REFERENCES users(id),
+    approved_at DATETIME,
+    created_by INTEGER REFERENCES users(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS bid_scores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bid_id INTEGER NOT NULL REFERENCES bids(id) ON DELETE CASCADE,
+    criterion TEXT NOT NULL,
+    score INTEGER NOT NULL CHECK(score >= 1 AND score <= 5),
+    notes TEXT,
+    scored_by INTEGER REFERENCES users(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(bid_id, criterion, scored_by)
+  );
+
+  CREATE TABLE IF NOT EXISTS bid_invitations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    vendor_id INTEGER NOT NULL REFERENCES vendors(id),
+    status TEXT DEFAULT 'invited' CHECK(status IN ('invited','viewed','responded','declined')),
+    invited_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    responded_at DATETIME,
+    UNIQUE(project_id, vendor_id)
+  );
+
+  -- Messaging system
+  CREATE TABLE IF NOT EXISTS channels (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel_type TEXT NOT NULL,
+    channel_key TEXT NOT NULL,
+    name TEXT,
+    created_by INTEGER REFERENCES users(id),
+    is_archived INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(channel_type, channel_key)
+  );
+
+  CREATE TABLE IF NOT EXISTS channel_members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel_id INTEGER NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    is_starred INTEGER DEFAULT 0,
+    muted INTEGER DEFAULT 0,
+    joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(channel_id, user_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS message_mentions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(message_id, user_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS message_reactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    reaction TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(message_id, user_id, reaction)
+  );
+
+  CREATE TABLE IF NOT EXISTS message_attachments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    filename TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    data TEXT NOT NULL,
+    size_bytes INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS pinned_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel_id INTEGER NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+    message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    pinned_by INTEGER NOT NULL REFERENCES users(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(channel_id, message_id)
+  );
+
   CREATE TABLE IF NOT EXISTS user_teams (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -800,6 +916,80 @@ try {
   db.exec("ALTER TABLE invite_tokens ADD COLUMN property_ids TEXT");
 }
 
+// Messaging migrations
+try {
+  db.prepare("SELECT parent_message_id FROM messages LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE messages ADD COLUMN parent_message_id INTEGER REFERENCES messages(id)");
+  db.exec("ALTER TABLE messages ADD COLUMN message_type TEXT DEFAULT 'user'");
+  db.exec("ALTER TABLE messages ADD COLUMN is_edited INTEGER DEFAULT 0");
+  db.exec("ALTER TABLE messages ADD COLUMN edited_at DATETIME");
+}
+
+// Widen messages.channel_type CHECK and make sender_id nullable for system messages
+try {
+  // Test if the old CHECK constraint exists by inserting a property-type message
+  db.exec(`INSERT INTO messages (sender_id, channel_type, channel_id, content) VALUES (NULL, 'property', '__migration_test__', '__test__')`);
+  db.exec(`DELETE FROM messages WHERE channel_id = '__migration_test__'`);
+} catch (e) {
+  // Old CHECK constraint still active — recreate table without it
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS messages_new (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sender_id INTEGER REFERENCES users(id),
+      channel_type TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      content TEXT NOT NULL,
+      parent_message_id INTEGER REFERENCES messages_new(id),
+      message_type TEXT DEFAULT 'user',
+      is_edited INTEGER DEFAULT 0,
+      edited_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    INSERT INTO messages_new SELECT id, sender_id, channel_type, channel_id, content, parent_message_id, message_type, is_edited, edited_at, created_at FROM messages;
+    DROP TABLE messages;
+    ALTER TABLE messages_new RENAME TO messages;
+  `);
+}
+
+// Widen notifications.type CHECK to include 'mention'
+try {
+  db.exec(`INSERT INTO notifications (user_id, type, title) VALUES (0, 'mention', '__migration_test__')`);
+  db.exec(`DELETE FROM notifications WHERE title = '__migration_test__'`);
+} catch (e) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS notifications_new (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      type TEXT NOT NULL CHECK(type IN ('assignment','status_change','comment','due_soon','overdue','request','pm_due','mention')),
+      title TEXT NOT NULL,
+      message TEXT,
+      entity_type TEXT,
+      entity_id INTEGER,
+      is_read INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    INSERT INTO notifications_new SELECT * FROM notifications;
+    DROP TABLE notifications;
+    ALTER TABLE notifications_new RENAME TO notifications;
+  `);
+}
+
+// Project/bidding migrations
+try {
+  db.prepare("SELECT bid_deadline FROM projects LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE projects ADD COLUMN bid_deadline TEXT");
+  db.exec("ALTER TABLE projects ADD COLUMN progress INTEGER DEFAULT 0");
+}
+
+try {
+  db.prepare("SELECT rejection_reason FROM bids LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE bids ADD COLUMN rejection_reason TEXT");
+  db.exec("ALTER TABLE bids ADD COLUMN revised_from_id INTEGER REFERENCES bids(id)");
+}
+
 // Seed permissions (idempotent)
 const permissionDefs = [
   ['workorders', 'view'], ['workorders', 'create'], ['workorders', 'edit'], ['workorders', 'delete'],
@@ -822,7 +1012,7 @@ const permissionDefs = [
   ['users', 'deactivate'], ['users', 'force_reset'], ['users', 'manage_permissions'],
   ['settings', 'view'], ['settings', 'edit'],
   ['integrations', 'view'], ['integrations', 'configure'],
-  ['messages', 'view'], ['messages', 'send'],
+  ['messages', 'view'], ['messages', 'send'], ['messages', 'pin'], ['messages', 'announce'],
   ['audit_log', 'view'], ['audit_log', 'export'],
   ['approvals', 'view'], ['approvals', 'manage_rules'], ['approvals', 'delegate'],
 ];
@@ -887,4 +1077,32 @@ function createNotification(userId, type, title, message, entityType, entityId) 
   stmt.run(userId, type, title, message || null, entityType || null, entityId || null);
 }
 
-module.exports = { db, logActivity, createNotification };
+/**
+ * Ensure a channel exists and has the given members. Returns the channel row.
+ */
+function ensureChannel(channelType, channelKey, name, memberUserIds, createdBy) {
+  let channel = db.prepare('SELECT * FROM channels WHERE channel_type = ? AND channel_key = ?').get(channelType, channelKey);
+  if (!channel) {
+    const result = db.prepare('INSERT INTO channels (channel_type, channel_key, name, created_by) VALUES (?, ?, ?, ?)')
+      .run(channelType, channelKey, name || null, createdBy || null);
+    channel = db.prepare('SELECT * FROM channels WHERE id = ?').get(result.lastInsertRowid);
+  }
+  // Add members
+  const addMember = db.prepare('INSERT OR IGNORE INTO channel_members (channel_id, user_id) VALUES (?, ?)');
+  for (const uid of (memberUserIds || [])) {
+    addMember.run(channel.id, uid);
+  }
+  return channel;
+}
+
+/**
+ * Post a system message to a channel. Auto-creates the channel if needed.
+ */
+function postSystemMessage(channelType, channelKey, content, memberUserIds) {
+  const channel = ensureChannel(channelType, channelKey, null, memberUserIds || []);
+  db.prepare(
+    "INSERT INTO messages (sender_id, channel_type, channel_id, content, message_type) VALUES (NULL, ?, ?, ?, 'system')"
+  ).run(channelType, channelKey, content);
+}
+
+module.exports = { db, logActivity, createNotification, ensureChannel, postSystemMessage };
