@@ -5,7 +5,7 @@ const QRCodes = {
   // Generate QR code data URL
   generate(type, id, size) {
     size = size || 6;
-    const url = `${this.baseUrl}/scan/${type}/${id}`;
+    const url = type === 'request' ? `${this.baseUrl}/request/${id}` : `${this.baseUrl}/scan/${type}/${id}`;
     const qr = qrcode(0, 'M');
     qr.addData(url);
     qr.make();
@@ -15,7 +15,7 @@ const QRCodes = {
   // Generate SVG string for high-quality print
   generateSVG(type, id, moduleSize) {
     moduleSize = moduleSize || 4;
-    const url = `${this.baseUrl}/scan/${type}/${id}`;
+    const url = type === 'request' ? `${this.baseUrl}/request/${id}` : `${this.baseUrl}/scan/${type}/${id}`;
     const qr = qrcode(0, 'M');
     qr.addData(url);
     qr.make();
@@ -195,7 +195,8 @@ const QRCodes = {
   typeLabel(type) {
     const labels = {
       asset: 'Asset', location: 'Location', part: 'Part', property: 'Property',
-      pm: 'PM Schedule', procedure: 'Procedure', wo: 'Work Order', project: 'Project'
+      pm: 'PM Schedule', procedure: 'Procedure', wo: 'Work Order', project: 'Project',
+      request: 'Work Request Form'
     };
     return labels[type] || type;
   },

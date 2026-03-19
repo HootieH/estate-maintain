@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Submit Work Request - Estate Maintain</title>
+  <title>Submit Work Request - Estatecraft</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -16,7 +16,7 @@
       align-items: center;
     }
     .header {
-      background: #4F46E5;
+      background: #1E40AF;
       color: white;
       width: 100%;
       padding: 1.5rem 2rem;
@@ -24,133 +24,69 @@
     }
     .header h1 { font-size: 1.5rem; font-weight: 600; }
     .header p { opacity: 0.85; margin-top: 0.25rem; font-size: 0.9rem; }
-    .container {
-      width: 100%;
-      max-width: 640px;
-      padding: 2rem 1rem;
-    }
-    .card {
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      padding: 2rem;
-    }
+    .property-name { font-size: 0.8rem; opacity: 0.7; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .container { width: 100%; max-width: 640px; padding: 2rem 1rem; }
+    .card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 2rem; }
     .form-group { margin-bottom: 1.25rem; }
-    .form-group label {
-      display: block;
-      font-weight: 500;
-      margin-bottom: 0.375rem;
-      font-size: 0.875rem;
-      color: #475569;
-    }
+    .form-group label { display: block; font-weight: 500; margin-bottom: 0.375rem; font-size: 0.875rem; color: #475569; }
     .form-group label .required { color: #EF4444; }
     .form-control {
-      width: 100%;
-      padding: 0.625rem 0.75rem;
-      border: 1px solid #CBD5E1;
-      border-radius: 8px;
-      font-size: 0.9rem;
-      font-family: inherit;
-      color: #1E293B;
-      background: white;
-      transition: border-color 0.15s;
+      width: 100%; padding: 0.625rem 0.75rem; border: 1px solid #CBD5E1; border-radius: 8px;
+      font-size: 0.9rem; font-family: inherit; color: #1E293B; background: white; transition: border-color 0.15s;
     }
-    .form-control:focus {
-      outline: none;
-      border-color: #4F46E5;
-      box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
-    }
+    .form-control:focus { outline: none; border-color: #1E40AF; box-shadow: 0 0 0 3px rgba(30,64,175,0.1); }
     textarea.form-control { resize: vertical; min-height: 100px; }
     select.form-control { appearance: auto; }
-    .form-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1rem;
-    }
-    @media (max-width: 500px) {
-      .form-row { grid-template-columns: 1fr; }
-    }
-    .form-hint {
-      font-size: 0.75rem;
-      color: #94A3B8;
-      margin-top: 0.25rem;
-    }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 500px) { .form-row { grid-template-columns: 1fr; } }
     .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0.75rem 1.5rem;
-      border: none;
-      border-radius: 8px;
-      font-size: 0.9rem;
-      font-weight: 500;
-      font-family: inherit;
-      cursor: pointer;
-      transition: background 0.15s, opacity 0.15s;
+      display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.5rem;
+      border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 500; font-family: inherit; cursor: pointer;
     }
     .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    .btn-primary {
-      background: #4F46E5;
-      color: white;
-      width: 100%;
-    }
-    .btn-primary:hover:not(:disabled) { background: #4338CA; }
-    .form-error {
-      background: #FEF2F2;
-      color: #DC2626;
-      padding: 0.75rem 1rem;
-      border-radius: 8px;
-      font-size: 0.875rem;
-      margin-bottom: 1rem;
-    }
-    .success-view {
-      text-align: center;
-      padding: 2rem 1rem;
-    }
-    .success-icon {
-      width: 64px;
-      height: 64px;
-      background: #ECFDF5;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 auto 1.5rem;
-    }
+    .btn-primary { background: #1E40AF; color: white; width: 100%; }
+    .btn-primary:hover:not(:disabled) { background: #1E3A8A; }
+    .form-error { background: #FEF2F2; color: #DC2626; padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.875rem; margin-bottom: 1rem; }
+    .success-view { text-align: center; padding: 2rem 1rem; }
+    .success-icon { width: 64px; height: 64px; background: #ECFDF5; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; }
     .success-icon svg { width: 32px; height: 32px; color: #10B981; }
-    .success-view h2 { margin-bottom: 0.5rem; color: #1E293B; }
+    .success-view h2 { margin-bottom: 0.5rem; }
     .success-view p { color: #64748B; margin-bottom: 0.25rem; }
-    .request-id {
-      display: inline-block;
-      background: #F1F5F9;
-      padding: 0.5rem 1rem;
-      border-radius: 8px;
-      font-family: monospace;
-      font-size: 1.1rem;
-      font-weight: 600;
-      color: #4F46E5;
-      margin: 1rem 0;
-    }
-    .btn-link {
-      background: none;
-      border: none;
-      color: #4F46E5;
-      font-size: 0.9rem;
-      cursor: pointer;
-      font-family: inherit;
-      text-decoration: underline;
-      margin-top: 1rem;
-    }
+    .request-id { display: inline-block; background: #F1F5F9; padding: 0.5rem 1rem; border-radius: 8px; font-family: monospace; font-size: 1.1rem; font-weight: 600; color: #1E40AF; margin: 1rem 0; }
+    .btn-link { background: none; border: none; color: #1E40AF; font-size: 0.9rem; cursor: pointer; font-family: inherit; text-decoration: underline; margin-top: 1rem; }
+    .error-view { text-align: center; padding: 3rem 1rem; }
+    .error-view svg { width: 48px; height: 48px; color: #EF4444; margin-bottom: 1rem; }
+    .error-view h2 { margin-bottom: 0.5rem; }
+    .error-view p { color: #64748B; }
+    .loading-view { text-align: center; padding: 3rem; color: #64748B; }
   </style>
 </head>
 <body>
   <div class="header">
     <h1>Submit a Work Request</h1>
     <p>Report a maintenance issue or request service</p>
+    <div class="property-name" id="header-property-name"></div>
   </div>
 
   <div class="container">
-    <div class="card" id="request-form-card">
+    <!-- Loading -->
+    <div class="card" id="loading-card">
+      <div class="loading-view">Loading...</div>
+    </div>
+
+    <!-- Error (invalid property) -->
+    <div class="card" id="error-card" style="display:none">
+      <div class="error-view">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+        </svg>
+        <h2>Invalid Request Link</h2>
+        <p>This link doesn't point to a valid property. Please ask your property manager for the correct link.</p>
+      </div>
+    </div>
+
+    <!-- Form -->
+    <div class="card" id="request-form-card" style="display:none">
       <form id="request-form" onsubmit="submitRequest(event)">
         <div class="form-group">
           <label>Title <span class="required">*</span></label>
@@ -162,17 +98,9 @@
           <textarea id="req-description" class="form-control" placeholder="Provide details about the issue or request..."></textarea>
         </div>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label>Property</label>
-            <select id="req-property" class="form-control">
-              <option value="">Select a property</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Location</label>
-            <input type="text" id="req-location" class="form-control" placeholder="e.g., Unit 3B, 2nd floor bathroom">
-          </div>
+        <div class="form-group">
+          <label>Location</label>
+          <input type="text" id="req-location" class="form-control" placeholder="e.g., Unit 3B, 2nd floor bathroom">
         </div>
 
         <div class="form-group">
@@ -204,11 +132,11 @@
         </div>
 
         <div id="form-error" class="form-error" style="display:none"></div>
-
         <button type="submit" class="btn btn-primary" id="submit-btn">Submit Request</button>
       </form>
     </div>
 
+    <!-- Success -->
     <div class="card" id="success-card" style="display:none">
       <div class="success-view">
         <div class="success-icon">
@@ -227,23 +155,39 @@
   </div>
 
   <script>
-    // Load properties on page load
-    (async function loadProperties() {
+    let propertyId = null;
+
+    (async function init() {
+      // Extract property ID from URL: /request/123 or /request?property=123
+      const pathMatch = window.location.pathname.match(/\/request\/(\d+)/);
+      const params = new URLSearchParams(window.location.search);
+
+      propertyId = pathMatch ? pathMatch[1] : params.get('property');
+
+      if (!propertyId) {
+        showError();
+        return;
+      }
+
+      // Validate property exists
       try {
-        const res = await fetch('/api/requests/properties');
-        if (!res.ok) return;
-        const properties = await res.json();
-        const select = document.getElementById('req-property');
-        properties.forEach(p => {
-          const opt = document.createElement('option');
-          opt.value = p.id;
-          opt.textContent = p.name;
-          select.appendChild(opt);
-        });
+        const res = await fetch('/api/requests/property/' + propertyId);
+        if (!res.ok) { showError(); return; }
+        const property = await res.json();
+
+        document.getElementById('header-property-name').textContent = property.name;
+        document.title = 'Work Request - ' + property.name;
+        document.getElementById('loading-card').style.display = 'none';
+        document.getElementById('request-form-card').style.display = 'block';
       } catch (e) {
-        console.error('Failed to load properties:', e);
+        showError();
       }
     })();
+
+    function showError() {
+      document.getElementById('loading-card').style.display = 'none';
+      document.getElementById('error-card').style.display = 'block';
+    }
 
     async function submitRequest(e) {
       e.preventDefault();
@@ -257,7 +201,7 @@
         const body = {
           title: document.getElementById('req-title').value,
           description: document.getElementById('req-description').value || null,
-          property_id: document.getElementById('req-property').value || null,
+          property_id: propertyId,
           location: document.getElementById('req-location').value || null,
           priority: document.getElementById('req-priority').value,
           requester_name: document.getElementById('req-name').value,

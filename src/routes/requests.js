@@ -4,13 +4,14 @@ const { authenticate, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
-// PUBLIC: Get property list for the request form
-router.get('/properties', (req, res) => {
+// PUBLIC: Validate a property for the request form
+router.get('/property/:id', (req, res) => {
   try {
-    const properties = db.prepare('SELECT id, name FROM properties ORDER BY name').all();
-    res.json(properties);
+    const property = db.prepare('SELECT id, name, address, type FROM properties WHERE id = ?').get(req.params.id);
+    if (!property) return res.status(404).json({ error: 'Property not found' });
+    res.json(property);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch properties', details: err.message });
+    res.status(500).json({ error: 'Failed to fetch property', details: err.message });
   }
 });
 

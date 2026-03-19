@@ -96,6 +96,9 @@ app.use('/api/delegations', delegationRoutes);
 app.get('/request', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'request.html'));
 });
+app.get('/request/:id', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'request.html'));
+});
 app.get('/invite', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'invite.html'));
 });

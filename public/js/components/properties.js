@@ -99,6 +99,9 @@ const Properties = {
             <span class="badge badge-property-${(property.type || 'other').toLowerCase()}">${property.type || 'Other'}</span>
           </div>
           <div class="page-header-actions">
+            <button class="btn btn-secondary" onclick="Properties.showRequestLink('${params.id}', '${property.name.replace(/'/g, "\\'")}')">
+              <i data-lucide="inbox"></i> Request Form
+            </button>
             ${QRCodes.button('property', params.id, property.name, property.address || property.type || '')}
             <button class="btn btn-primary" onclick="Router.navigate('#/workorders/new')">
               <i data-lucide="plus"></i> New Work Order
@@ -698,6 +701,59 @@ const Properties = {
       btn.disabled = false;
       btn.textContent = 'Save Changes';
     }
+  },
+
+  showRequestLink(propertyId, propertyName) {
+    const url = `${window.location.origin}/request/${propertyId}`;
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    const dataUrl = qr.createDataURL(8, 0);
+
+    const modal = document.getElementById('modal-overlay');
+    modal.querySelector('.modal-title').textContent = 'Work Request Form';
+    modal.querySelector('.modal-body').innerHTML = `
+      <div style="text-align:center">
+        <p style="margin-bottom:16px;color:var(--text-muted);font-size:0.9rem">
+          Share this link or QR code so residents and guests can submit work requests for <strong>${propertyName}</strong>.
+        </p>
+        <img src="${dataUrl}" alt="QR Code" style="width:200px;height:200px;border-radius:8px;margin-bottom:16px">
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input type="text" class="form-control" value="${url}" readonly id="request-link-input" style="font-size:0.85rem">
+          <button class="btn btn-primary btn-sm" onclick="navigator.clipboard.writeText('${url}');App.toast('Link copied','success')">Copy</button>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:center">
+          <button class="btn btn-secondary btn-sm" onclick="Properties.printRequestQR('${propertyId}', '${propertyName.replace(/'/g, "\\'")}')">
+            <i data-lucide="printer"></i> Print QR
+          </button>
+          <a href="${url}" target="_blank" class="btn btn-secondary btn-sm">
+            <i data-lucide="external-link"></i> Open Form
+          </a>
+        </div>
+      </div>
+    `;
+    modal.querySelector('.modal-footer').innerHTML = '';
+    modal.style.display = 'flex';
+    lucide.createIcons();
+  },
+
+  printRequestQR(propertyId, propertyName) {
+    const url = `${window.location.origin}/request/${propertyId}`;
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    const svg = qr.createSvgTag(6, 0);
+
+    const win = window.open('', '_blank');
+    win.document.write(`<!DOCTYPE html><html><head><title>Request QR - ${propertyName}</title>
+      <style>body{font-family:-apple-system,sans-serif;text-align:center;padding:40px}
+      h2{font-size:1.2rem;margin-bottom:4px}p{color:#666;margin-bottom:20px;font-size:0.9rem}
+      .url{font-size:0.75rem;color:#999;margin-top:12px;word-break:break-all}
+      @media print{body{padding:20px}}</style></head>
+      <body><h2>${propertyName}</h2><p>Scan to submit a work request</p>
+      ${svg}<div class="url">${url}</div>
+      <script>window.print();<\/script></body></html>`);
+    win.document.close();
   },
 
   async remove(id) {
