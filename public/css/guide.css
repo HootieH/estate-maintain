@@ -1,0 +1,626 @@
+/* ============================================
+   Guide / How It Works
+   ============================================ */
+
+.guide-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 24px;
+  width: fit-content;
+}
+
+.guide-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.guide-tab:hover {
+  color: var(--text);
+}
+
+.guide-tab.active {
+  background: var(--card-bg);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.guide-tab svg {
+  width: 16px;
+  height: 16px;
+}
+
+.guide-section {
+  max-width: 900px;
+}
+
+.guide-intro {
+  margin-bottom: 32px;
+}
+
+.guide-intro h2 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.guide-intro p {
+  font-size: 15px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  max-width: 640px;
+}
+
+/* Flow Diagram */
+.flow-diagram {
+  margin-bottom: 40px;
+}
+
+.flow-stage {
+  margin-bottom: 0;
+}
+
+.flow-stage-label {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-light);
+  margin-bottom: 16px;
+}
+
+.flow-sources {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .flow-sources {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.flow-node {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.flow-node-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.flow-node-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.flow-node-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.flow-node-text strong {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.flow-node-text span {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.flow-arrow-down {
+  width: 2px;
+  height: 16px;
+  background: var(--border);
+  position: relative;
+}
+
+.flow-arrow-down::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: -3px;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--border);
+}
+
+.flow-action {
+  font-size: 11px;
+  color: var(--text-light);
+  font-style: italic;
+}
+
+/* Main connector */
+.flow-connector-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
+}
+
+.flow-connector-line {
+  width: 2px;
+  height: 24px;
+  background: linear-gradient(to bottom, var(--border), var(--primary-light));
+}
+
+.flow-connector-label {
+  font-size: 12px;
+  color: var(--primary-light);
+  font-weight: 600;
+  padding: 4px 16px;
+  background: var(--primary-lighter, #DBEAFE);
+  border-radius: 20px;
+  margin-top: 4px;
+}
+
+/* Core work order node */
+.flow-core-node {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 28px;
+  background: linear-gradient(135deg, #1E40AF, #3B82F6);
+  border-radius: 14px;
+  color: white;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.flow-core-icon {
+  width: 52px;
+  height: 52px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.flow-core-icon svg {
+  width: 26px;
+  height: 26px;
+}
+
+.flow-core-text strong {
+  display: block;
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+
+.flow-core-text span {
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+/* Branches */
+.flow-branches {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  padding: 16px 0;
+}
+
+@media (max-width: 768px) {
+  .flow-branches {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.flow-branch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.flow-branch-line {
+  width: 2px;
+  height: 16px;
+  background: var(--border);
+}
+
+.flow-branch-node {
+  text-align: center;
+  padding: 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.flow-branch-node svg {
+  width: 20px;
+  height: 20px;
+  color: var(--primary-light);
+  margin-bottom: 2px;
+}
+
+.flow-branch-node strong {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.flow-branch-node span {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Complete steps */
+.flow-complete-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.flow-complete-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.flow-step-circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.flow-step-circle svg {
+  width: 18px;
+  height: 18px;
+}
+
+.flow-complete-step span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.flow-complete-arrow {
+  width: 24px;
+  height: 2px;
+  background: var(--border);
+  position: relative;
+  margin-bottom: 20px;
+}
+
+.flow-complete-arrow::after {
+  content: '';
+  position: absolute;
+  right: -4px;
+  top: -3px;
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid var(--border);
+}
+
+/* Supporting systems */
+.flow-sidebar-diagram {
+  margin-top: 40px;
+}
+
+.flow-sidebar-diagram h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 16px;
+}
+
+.flow-support-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .flow-support-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.flow-support-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.flow-support-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.flow-support-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.flow-support-card strong {
+  display: block;
+  font-size: 14px;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.flow-support-card span {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* Workflows */
+.workflow-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.workflow-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.workflow-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.workflow-header:hover {
+  background: var(--bg);
+}
+
+.workflow-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.workflow-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.workflow-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.workflow-header strong {
+  font-size: 15px;
+  color: var(--text);
+}
+
+.workflow-chevron {
+  width: 20px;
+  height: 20px;
+  color: var(--text-muted);
+  transition: transform 0.2s;
+}
+
+.workflow-steps {
+  padding: 0 20px 20px;
+}
+
+.workflow-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+  position: relative;
+}
+
+.workflow-step-number {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--primary-lighter, #DBEAFE);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+.workflow-step-connector {
+  position: absolute;
+  left: 11px;
+  top: 34px;
+  width: 2px;
+  height: calc(100% - 14px);
+  background: var(--border);
+}
+
+.workflow-step:last-child .workflow-step-connector {
+  display: none;
+}
+
+.workflow-step-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.workflow-step-icon svg {
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+}
+
+.workflow-step-text {
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.5;
+  padding-top: 1px;
+}
+
+.workflow-step-text a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.workflow-step-text a:hover {
+  text-decoration: none;
+}
+
+.workflow-step-text strong {
+  color: var(--primary);
+}
+
+/* Reference Grid */
+.reference-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.reference-card {
+  display: flex;
+  gap: 16px;
+  padding: 18px 20px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.15s;
+}
+
+.reference-card:hover {
+  border-color: var(--primary-lighter);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  text-decoration: none;
+  color: inherit;
+}
+
+.reference-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.reference-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.reference-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.reference-content strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.reference-when {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--primary-light);
+  margin-bottom: 6px;
+}
+
+.reference-when em {
+  font-style: normal;
+  font-weight: 600;
+}
+
+.reference-content p {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0 0 6px;
+}
+
+.reference-connects {
+  font-size: 11px;
+  color: var(--text-light);
+  font-weight: 500;
+  padding: 3px 10px;
+  background: var(--bg);
+  border-radius: 4px;
+  display: inline-block;
+}

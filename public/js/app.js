@@ -36,6 +36,7 @@ const App = {
     Router.add('/purchaseorders/:id', (p) => PurchaseOrders.detail(p));
     Router.add('/reports', () => Reports.render());
     Router.add('/settings', () => Settings.render());
+    Router.add('/guide', () => Guide.render());
 
     Router.init();
 
