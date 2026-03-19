@@ -138,6 +138,7 @@ const Parts = {
             <td>${p.location || p.property_name || '-'}</td>
             <td>
               <span class="${isLow ? 'text-danger font-bold' : ''}">${p.quantity}</span>
+              ${p.reorder_point && p.quantity <= p.reorder_point ? ' <span class="badge badge-warning" title="At or below reorder point">Reorder</span>' : ''}
             </td>
             <td>${p.min_quantity || 0}</td>
             <td>${p.unit_cost ? '$' + Number(p.unit_cost).toFixed(2) : '-'}</td>
@@ -283,6 +284,15 @@ const Parts = {
           </div>
         </div>
 
+        <div class="card" style="margin-top:16px">
+          <div class="card-header"><h3>Usage History</h3></div>
+          <div class="card-body" id="part-usage-history">
+            <button class="btn btn-sm btn-secondary" onclick="Parts.loadUsageHistory('${params.id}')">
+              <i data-lucide="history"></i> Load History
+            </button>
+          </div>
+        </div>
+
         <div class="card">
           <div class="card-header"><h3>Adjustment History</h3></div>
           <div class="card-body">
@@ -309,6 +319,40 @@ const Parts = {
       lucide.createIcons();
     } catch (e) {
       container.innerHTML = `<div class="error-state"><p>${e.message}</p></div>`;
+    }
+  },
+
+  async loadUsageHistory(partId) {
+    const el = document.getElementById('part-usage-history');
+    if (!el) return;
+    el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+    try {
+      const data = await API.get(`/parts/${partId}/usage`);
+      if (!data.usage || data.usage.length === 0) {
+        el.innerHTML = '<div class="empty-state-sm">No usage recorded</div>';
+        return;
+      }
+
+      el.innerHTML = `
+        <div style="margin-bottom:8px;font-size:13px;color:var(--text-muted)">Total Used: <strong>${data.totalUsed}</strong></div>
+        <table class="table table-sm">
+          <thead><tr><th>Work Order</th><th>Qty</th><th>Cost</th><th>Date</th><th>By</th></tr></thead>
+          <tbody>
+            ${data.usage.map(u => `
+              <tr class="clickable-row" onclick="Router.navigate('#/workorders/${u.work_order_id}')">
+                <td>${u.work_order_title}</td>
+                <td>${u.quantity_used}</td>
+                <td>$${(u.quantity_used * u.unit_cost).toFixed(2)}</td>
+                <td>${Dashboard.formatDate(u.created_at)}</td>
+                <td>${u.added_by_name || '-'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    } catch (e) {
+      el.innerHTML = `<div class="error-state"><p>${e.message}</p></div>`;
     }
   },
 

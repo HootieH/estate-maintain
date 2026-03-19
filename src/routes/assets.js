@@ -69,6 +69,20 @@ router.get('/:id', (req, res) => {
       return res.status(404).json({ error: 'Asset not found' });
     }
 
+    // Active downtime
+    const activeDowntime = db.prepare('SELECT * FROM asset_downtime WHERE asset_id = ? AND ended_at IS NULL').get(req.params.id);
+    asset.active_downtime = activeDowntime || null;
+
+    // Child assets
+    const children = db.prepare('SELECT id, name, category, status FROM assets WHERE parent_asset_id = ?').all(req.params.id);
+    asset.children = children;
+
+    // Parent asset
+    if (asset.parent_asset_id) {
+      const parent = db.prepare('SELECT id, name FROM assets WHERE id = ?').get(asset.parent_asset_id);
+      asset.parent_asset = parent || null;
+    }
+
     res.json(asset);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch asset', details: err.message });
@@ -156,6 +170,83 @@ router.delete('/:id', requireRole('admin', 'manager', 'technician'), (req, res) 
     res.json({ message: 'Asset deleted' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete asset', details: err.message });
+  }
+});
+
+// POST /:id/downtime - Start downtime tracking
+router.post('/:id/downtime', (req, res) => {
+  try {
+    const asset = db.prepare('SELECT id FROM assets WHERE id = ?').get(req.params.id);
+    if (!asset) return res.status(404).json({ error: 'Asset not found' });
+
+    // Check if there's an active downtime (no ended_at)
+    const active = db.prepare('SELECT id FROM asset_downtime WHERE asset_id = ? AND ended_at IS NULL').get(req.params.id);
+    if (active) return res.status(400).json({ error: 'Asset already has active downtime' });
+
+    const { reason, category, work_order_id } = req.body;
+    const result = db.prepare(
+      'INSERT INTO asset_downtime (asset_id, reason, category, work_order_id, reported_by) VALUES (?, ?, ?, ?, ?)'
+    ).run(req.params.id, reason || null, category || 'breakdown', work_order_id || null, req.user.id);
+
+    // Update asset status
+    db.prepare("UPDATE assets SET status = 'out_of_service' WHERE id = ?").run(req.params.id);
+    logActivity('asset', parseInt(req.params.id), 'downtime_started', `Downtime started: ${reason || 'No reason given'}`, req.user.id);
+
+    const entry = db.prepare('SELECT * FROM asset_downtime WHERE id = ?').get(result.lastInsertRowid);
+    res.status(201).json(entry);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to start downtime', details: err.message });
+  }
+});
+
+// PUT /:id/downtime/end - End active downtime
+router.put('/:id/downtime/end', (req, res) => {
+  try {
+    const active = db.prepare('SELECT * FROM asset_downtime WHERE asset_id = ? AND ended_at IS NULL').get(req.params.id);
+    if (!active) return res.status(404).json({ error: 'No active downtime found' });
+
+    db.prepare('UPDATE asset_downtime SET ended_at = CURRENT_TIMESTAMP WHERE id = ?').run(active.id);
+    db.prepare("UPDATE assets SET status = 'operational' WHERE id = ?").run(req.params.id);
+    logActivity('asset', parseInt(req.params.id), 'downtime_ended', 'Downtime ended', req.user.id);
+
+    const updated = db.prepare('SELECT * FROM asset_downtime WHERE id = ?').get(active.id);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to end downtime', details: err.message });
+  }
+});
+
+// GET /:id/downtime - Get downtime history
+router.get('/:id/downtime', (req, res) => {
+  try {
+    const history = db.prepare(`
+      SELECT ad.*, u.name AS reported_by_name
+      FROM asset_downtime ad
+      LEFT JOIN users u ON ad.reported_by = u.id
+      WHERE ad.asset_id = ? ORDER BY ad.started_at DESC LIMIT 50
+    `).all(req.params.id);
+
+    // Calculate total downtime hours
+    let totalHours = 0;
+    history.forEach(d => {
+      const end = d.ended_at ? new Date(d.ended_at) : new Date();
+      const start = new Date(d.started_at);
+      totalHours += (end - start) / (1000 * 60 * 60);
+    });
+
+    res.json({ history, totalHours: Math.round(totalHours * 10) / 10 });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch downtime', details: err.message });
+  }
+});
+
+// GET /:id/children - Get child assets
+router.get('/:id/children', (req, res) => {
+  try {
+    const children = db.prepare('SELECT * FROM assets WHERE parent_asset_id = ?').all(req.params.id);
+    res.json(children);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch child assets', details: err.message });
   }
 });
 

@@ -1,5 +1,6 @@
 const App = {
   init() {
+    this.initTheme();
     Router.add('/login', () => Login.render());
     Router.add('/dashboard', () => Dashboard.render());
     Router.add('/workorders', () => WorkOrders.list());
@@ -290,6 +291,23 @@ const App = {
       el.style.marginBottom = '0';
       el.style.padding = '0';
       setTimeout(() => el.remove(), 300);
+    }
+  },
+
+  toggleTheme() {
+    const current = document.documentElement.getAttribute('data-theme');
+    const next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+    // Update preference on server
+    API.put('/settings-api/preferences', { theme: next }).catch(() => {});
+    lucide.createIcons();
+  },
+
+  initTheme() {
+    const saved = localStorage.getItem('theme');
+    if (saved) {
+      document.documentElement.setAttribute('data-theme', saved);
     }
   },
 

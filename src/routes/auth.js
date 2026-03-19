@@ -95,6 +95,8 @@ router.post('/login', async (req, res) => {
     }
 
     const token = generateToken(user);
+    // Track last login
+    db.prepare('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?').run(user.id);
     res.json({ token, user: sanitizeUser(user) });
   } catch (err) {
     res.status(500).json({ error: 'Login failed', details: err.message });

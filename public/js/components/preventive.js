@@ -1,6 +1,7 @@
 const Preventive = {
   _currentPage: 1,
   _pagination: null,
+  _viewMode: 'list',
 
   async list(page) {
     this._currentPage = page || 1;
@@ -18,6 +19,15 @@ const Preventive = {
           <h1>Preventive Maintenance <span class="tip-trigger" data-tip="preventive-maintenance"><i data-lucide="help-circle" class="tip-badge-icon"></i></span></h1>
           <button class="btn btn-primary" onclick="Router.navigate('#/preventive/new')">
             <i data-lucide="plus"></i> New Schedule
+          </button>
+        </div>
+
+        <div class="view-toggle">
+          <button class="view-btn ${this._viewMode !== 'calendar' ? 'active' : ''}" onclick="Preventive._viewMode='list';Preventive.list()">
+            <i data-lucide="list"></i> List
+          </button>
+          <button class="view-btn ${this._viewMode === 'calendar' ? 'active' : ''}" onclick="Preventive._viewMode='calendar';Preventive.list()">
+            <i data-lucide="calendar"></i> Calendar
           </button>
         </div>
 
@@ -60,7 +70,7 @@ const Preventive = {
                   <i data-lucide="plus"></i> Create First Schedule
                 </button>
               </div>
-            ` : `
+            ` : this._viewMode === 'calendar' ? Preventive.renderCalendar(schedules) : `
               <table class="table">
                 <thead>
                   <tr>
@@ -492,5 +502,59 @@ const Preventive = {
     if (diff < 0) return 'danger';
     if (diff <= 2) return 'warning';
     return 'muted';
+  },
+
+  renderCalendar(schedules) {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const monthName = today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+    // Map schedules to dates
+    const byDate = {};
+    schedules.forEach(s => {
+      if (s.next_due) {
+        const d = s.next_due.split('T')[0];
+        if (!byDate[d]) byDate[d] = [];
+        byDate[d].push(s);
+      }
+    });
+
+    let cells = '';
+    // Empty cells for days before first of month
+    for (let i = 0; i < firstDay; i++) cells += '<div class="cal-cell cal-empty"></div>';
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const items = byDate[dateStr] || [];
+      const isToday = day === today.getDate() && month === today.getMonth();
+
+      cells += `
+        <div class="cal-cell ${isToday ? 'cal-today' : ''} ${items.length > 0 ? 'cal-has-items' : ''}">
+          <span class="cal-day">${day}</span>
+          ${items.slice(0, 2).map(s => `
+            <div class="cal-item" onclick="Router.navigate('#/preventive/${s.id}')" title="${s.title}">
+              <span class="cal-item-dot" style="background:${s.priority === 'critical' ? 'var(--critical)' : s.priority === 'high' ? 'var(--high)' : 'var(--primary-light)'}"></span>
+              <span class="cal-item-text">${s.title}</span>
+            </div>
+          `).join('')}
+          ${items.length > 2 ? `<div class="cal-more">+${items.length - 2} more</div>` : ''}
+        </div>
+      `;
+    }
+
+    return `
+      <div class="calendar-view">
+        <div class="cal-header">
+          <h3>${monthName}</h3>
+        </div>
+        <div class="cal-weekdays">
+          ${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => `<div class="cal-weekday">${d}</div>`).join('')}
+        </div>
+        <div class="cal-grid">${cells}</div>
+      </div>
+    `;
   }
 };

@@ -67,7 +67,33 @@ const Dashboard = {
               <div class="stat-label">Completed This Month</div>
             </div>
           </div>
+          <div class="stat-card">
+            <div class="stat-icon" style="background: #FEE2E2; color: #DC2626;">
+              <i data-lucide="power-off"></i>
+            </div>
+            <div class="stat-info">
+              <div class="stat-value">${s.assetsDown || 0}</div>
+              <div class="stat-label">Assets Down</div>
+            </div>
+          </div>
         </div>
+
+        ${(s.createdTrend && s.createdTrend.length > 1) ? `
+        <div class="card" style="margin-bottom:24px">
+          <div class="card-header">
+            <h3>7-Day Work Order Trend</h3>
+          </div>
+          <div class="card-body">
+            <div class="trend-chart">
+              ${Dashboard.renderTrendBars(s.createdTrend, s.completedTrend)}
+            </div>
+            <div class="trend-legend">
+              <span><span class="trend-dot" style="background:#3B82F6"></span> Created</span>
+              <span><span class="trend-dot" style="background:#10B981"></span> Completed</span>
+            </div>
+          </div>
+        </div>
+        ` : ''}
 
         <div class="dashboard-grid">
           <div class="card">
@@ -444,6 +470,36 @@ const Dashboard = {
       }
       requestAnimationFrame(update);
     });
+  },
+
+  renderTrendBars(created, completed) {
+    // Build day-by-day data for last 7 days
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const dayLabel = d.toLocaleDateString('en-US', { weekday: 'short' });
+      const c = (created || []).find(r => r.date === dateStr);
+      const co = (completed || []).find(r => r.date === dateStr);
+      days.push({ date: dateStr, day: dayLabel, created: c ? c.count : 0, completed: co ? co.count : 0 });
+    }
+
+    const max = Math.max(...days.map(d => Math.max(d.created, d.completed)), 1);
+
+    return `
+      <div class="trend-bars">
+        ${days.map(d => `
+          <div class="trend-bar-group">
+            <div class="trend-bar-pair">
+              <div class="trend-bar trend-bar-created" style="height: ${Math.max((d.created / max) * 80, 2)}px" title="${d.created} created"></div>
+              <div class="trend-bar trend-bar-completed" style="height: ${Math.max((d.completed / max) * 80, 2)}px" title="${d.completed} completed"></div>
+            </div>
+            <span class="trend-bar-label">${d.day}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
   },
 
   getDueClass(dateStr) {

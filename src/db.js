@@ -295,6 +295,103 @@ db.exec(`
     unit_cost REAL NOT NULL DEFAULT 0,
     received_quantity INTEGER DEFAULT 0
   );
+
+  CREATE TABLE IF NOT EXISTS work_order_parts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    work_order_id INTEGER NOT NULL REFERENCES work_orders(id) ON DELETE CASCADE,
+    part_id INTEGER NOT NULL REFERENCES parts(id),
+    quantity_used REAL NOT NULL DEFAULT 1,
+    unit_cost REAL DEFAULT 0,
+    added_by INTEGER REFERENCES users(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS asset_downtime (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+    started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ended_at DATETIME,
+    reason TEXT,
+    category TEXT CHECK(category IN ('breakdown','planned','external','other')),
+    work_order_id INTEGER REFERENCES work_orders(id),
+    reported_by INTEGER REFERENCES users(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    color TEXT DEFAULT '#6B7280',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS entity_tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+    entity_type TEXT NOT NULL,
+    entity_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(tag_id, entity_type, entity_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS favorites (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    entity_type TEXT NOT NULL,
+    entity_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, entity_type, entity_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS saved_filters (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    filters TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS system_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS work_order_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT,
+    property_id INTEGER REFERENCES properties(id),
+    asset_id INTEGER REFERENCES assets(id),
+    priority TEXT DEFAULT 'medium',
+    category TEXT,
+    assigned_to INTEGER REFERENCES users(id),
+    assigned_team_id INTEGER REFERENCES teams(id),
+    estimated_hours REAL,
+    procedure_id INTEGER REFERENCES procedures(id),
+    created_by INTEGER REFERENCES users(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS recurring_schedules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    template_id INTEGER NOT NULL REFERENCES work_order_templates(id) ON DELETE CASCADE,
+    frequency TEXT NOT NULL CHECK(frequency IN ('daily','weekly','biweekly','monthly','quarterly','semiannual','annual')),
+    next_due TEXT,
+    is_active INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS user_preferences (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    theme TEXT DEFAULT 'light' CHECK(theme IN ('light','dark','auto')),
+    notifications_enabled INTEGER DEFAULT 1,
+    email_notifications INTEGER DEFAULT 0,
+    default_property_id INTEGER REFERENCES properties(id),
+    sidebar_collapsed INTEGER DEFAULT 0,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 // Migrations for existing databases
@@ -322,6 +419,50 @@ try {
   db.prepare("SELECT onboarding_completed FROM users LIMIT 1").get();
 } catch (e) {
   db.exec("ALTER TABLE users ADD COLUMN onboarding_completed INTEGER DEFAULT 0");
+}
+
+// Wave 2 migrations
+try {
+  db.prepare("SELECT signed_off_by FROM work_orders LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE work_orders ADD COLUMN signed_off_by INTEGER REFERENCES users(id)");
+  db.exec("ALTER TABLE work_orders ADD COLUMN signed_off_at DATETIME");
+  db.exec("ALTER TABLE work_orders ADD COLUMN template_id INTEGER REFERENCES work_order_templates(id)");
+}
+
+try {
+  db.prepare("SELECT parent_asset_id FROM assets LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE assets ADD COLUMN parent_asset_id INTEGER REFERENCES assets(id)");
+  db.exec("ALTER TABLE assets ADD COLUMN criticality TEXT DEFAULT 'medium' CHECK(criticality IN ('critical','high','medium','low'))");
+  db.exec("ALTER TABLE assets ADD COLUMN purchase_date TEXT");
+  db.exec("ALTER TABLE assets ADD COLUMN replacement_cost REAL");
+}
+
+try {
+  db.prepare("SELECT preferred_vendor_id FROM parts LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE parts ADD COLUMN preferred_vendor_id INTEGER REFERENCES vendors(id)");
+  db.exec("ALTER TABLE parts ADD COLUMN reorder_point INTEGER DEFAULT 0");
+}
+
+try {
+  db.prepare("SELECT estimated_cost FROM preventive_schedules LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE preventive_schedules ADD COLUMN estimated_cost REAL");
+  db.exec("ALTER TABLE preventive_schedules ADD COLUMN assigned_to INTEGER REFERENCES users(id)");
+}
+
+try {
+  db.prepare("SELECT description FROM procedure_steps LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE procedure_steps ADD COLUMN description TEXT");
+}
+
+try {
+  db.prepare("SELECT last_login_at FROM users LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE users ADD COLUMN last_login_at DATETIME");
 }
 
 function logActivity(entityType, entityId, action, details, userId) {

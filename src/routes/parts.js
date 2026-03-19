@@ -188,4 +188,24 @@ router.delete('/:id', requireRole('admin', 'manager'), (req, res) => {
   }
 });
 
+// GET /:id/usage - Get parts usage history (which work orders used this part)
+router.get('/:id/usage', (req, res) => {
+  try {
+    const usage = db.prepare(`
+      SELECT wop.*, wo.title AS work_order_title, wo.status AS work_order_status, u.name AS added_by_name
+      FROM work_order_parts wop
+      JOIN work_orders wo ON wop.work_order_id = wo.id
+      LEFT JOIN users u ON wop.added_by = u.id
+      WHERE wop.part_id = ?
+      ORDER BY wop.created_at DESC
+      LIMIT 50
+    `).all(req.params.id);
+
+    const totalUsed = usage.reduce((sum, u) => sum + u.quantity_used, 0);
+    res.json({ usage, totalUsed });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch usage history', details: err.message });
+  }
+});
+
 module.exports = router;

@@ -68,6 +68,16 @@ router.get('/', (req, res) => {
       LIMIT 20
     `).all();
 
+    // Downtime summary
+    const activeDowntime = db.prepare('SELECT COUNT(*) AS count FROM asset_downtime WHERE ended_at IS NULL').get();
+
+    // Recent 7 day trend
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const trendStart = sevenDaysAgo.toISOString().split('T')[0];
+    const createdTrend = db.prepare("SELECT DATE(created_at) AS date, COUNT(*) AS count FROM work_orders WHERE created_at >= ? GROUP BY DATE(created_at)").all(trendStart);
+    const completedTrend = db.prepare("SELECT DATE(completed_at) AS date, COUNT(*) AS count FROM work_orders WHERE completed_at IS NOT NULL AND completed_at >= ? GROUP BY DATE(completed_at)").all(trendStart);
+
     res.json({
       totalProperties,
       totalAssets,
@@ -79,6 +89,9 @@ router.get('/', (req, res) => {
       upcomingPreventive,
       lowStockParts,
       recentActivity,
+      assetsDown: activeDowntime.count,
+      createdTrend,
+      completedTrend,
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch dashboard data', details: err.message });

@@ -2,6 +2,7 @@ const WorkOrders = {
   currentFilters: { status: 'all', priority: 'all', property: 'all', search: '' },
   _currentPage: 1,
   _pagination: null,
+  _viewMode: 'list',
 
   async list(page) {
     this._currentPage = page || 1;
@@ -57,11 +58,22 @@ const WorkOrders = {
           </div>
         </div>
 
+        <div class="view-toggle">
+          <button class="view-btn ${this._viewMode !== 'kanban' ? 'active' : ''}" onclick="WorkOrders._viewMode='list';WorkOrders.list()">
+            <i data-lucide="list"></i> List
+          </button>
+          <button class="view-btn ${this._viewMode === 'kanban' ? 'active' : ''}" onclick="WorkOrders._viewMode='kanban';WorkOrders.list()">
+            <i data-lucide="columns-3"></i> Board
+          </button>
+        </div>
+
+        ${this._viewMode === 'kanban' ? this.renderKanban(workorders) : `
         <div class="card">
           <div class="card-body no-padding">
             <table class="table" id="wo-table">
               <thead>
                 <tr>
+                  <th style="width:40px"><input type="checkbox" onchange="WorkOrders.toggleSelectAll(this.checked)"></th>
                   <th>Title</th>
                   <th>Property</th>
                   <th>Priority</th>
@@ -109,9 +121,22 @@ const WorkOrders = {
                 <i data-lucide="plus"></i> Create Your First Work Order
               </button>
             </div>
+            <div class="bulk-bar" id="wo-bulk-bar" style="display:none">
+              <span id="wo-bulk-count">0 selected</span>
+              <select id="wo-bulk-status" class="form-control form-control-sm" style="width:auto">
+                <option value="">Change status...</option>
+                <option value="open">Open</option>
+                <option value="in_progress">In Progress</option>
+                <option value="on_hold">On Hold</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+              <button class="btn btn-sm btn-primary" onclick="WorkOrders.bulkStatusChange()">Apply</button>
+            </div>
             ${Pagination.render(pagination, 'WorkOrders')}
           </div>
         </div>
+        `}
       `;
 
       this._workorders = workorders;
@@ -170,6 +195,7 @@ const WorkOrders = {
       if (empty) empty.style.display = 'none';
       tbody.innerHTML = filtered.map(wo => `
         <tr class="clickable-row" onclick="Router.navigate('#/workorders/${wo.id}')">
+          <td onclick="event.stopPropagation()"><input type="checkbox" class="wo-select" value="${wo.id}" onchange="WorkOrders.updateBulkBar()"></td>
           <td><strong>${wo.title}</strong></td>
           <td>${wo.property_name || '-'}</td>
           <td><span class="badge badge-${wo.priority}">${wo.priority}</span></td>
@@ -200,12 +226,25 @@ const WorkOrders = {
             <span class="badge badge-status-${(wo.status || '').replace(/\s+/g, '_')}">${wo.status}</span>
           </div>
           <div class="page-header-actions">
+            <button class="btn btn-secondary" onclick="WorkOrders.duplicate('${params.id}')">
+              <i data-lucide="copy"></i> Duplicate
+            </button>
             <button class="btn btn-secondary" onclick="WorkOrders.edit('${params.id}')">
               <i data-lucide="edit"></i> Edit
             </button>
             <button class="btn btn-danger" onclick="WorkOrders.remove('${params.id}')">
               <i data-lucide="trash-2"></i> Delete
             </button>
+            ${wo.status === 'completed' && !wo.signed_off_by ? `
+              <button class="btn btn-success" onclick="WorkOrders.signOff('${params.id}')">
+                <i data-lucide="pen-line"></i> Sign Off
+              </button>
+            ` : ''}
+            ${wo.signed_off_by ? `
+              <span class="badge badge-status-completed" style="padding:8px 12px">
+                <i data-lucide="check-circle-2" style="width:14px;height:14px"></i> Signed off by ${wo.signed_off_by_name || 'Unknown'}
+              </span>
+            ` : ''}
           </div>
         </div>
 
@@ -252,6 +291,14 @@ const WorkOrders = {
                 <div class="detail-field">
                   <label>Updated</label>
                   <p>${Dashboard.formatDate(wo.updated_at)}</p>
+                </div>
+                <div class="detail-field">
+                  <label>Estimated Hours</label>
+                  <p>${wo.estimated_hours || '-'}</p>
+                </div>
+                <div class="detail-field">
+                  <label>Hours Logged</label>
+                  <p>${wo.total_hours ? wo.total_hours.toFixed(1) + ' hrs' : '-'}</p>
                 </div>
                 <div class="detail-field detail-field-full">
                   <label>Description</label>
@@ -311,6 +358,38 @@ const WorkOrders = {
                 <i data-lucide="send"></i> Comment
               </button>
             </form>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+            <h3>Parts Used</h3>
+            ${wo.status !== 'completed' && wo.status !== 'cancelled' ? `
+              <button class="btn btn-sm btn-primary" onclick="WorkOrders.showAddPartModal('${params.id}')">
+                <i data-lucide="plus"></i> Add Part
+              </button>
+            ` : ''}
+          </div>
+          <div class="card-body">
+            ${(wo.parts_used && wo.parts_used.length > 0) ? `
+              <table class="table">
+                <thead><tr><th>Part</th><th>SKU</th><th>Qty</th><th>Unit Cost</th><th>Total</th></tr></thead>
+                <tbody>
+                  ${wo.parts_used.map(p => `
+                    <tr>
+                      <td>${p.part_name}</td>
+                      <td>${p.sku || '-'}</td>
+                      <td>${p.quantity_used}</td>
+                      <td>$${(p.unit_cost || 0).toFixed(2)}</td>
+                      <td><strong>$${(p.quantity_used * (p.unit_cost || 0)).toFixed(2)}</strong></td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+              <div style="text-align:right;padding:8px 16px;font-weight:600;color:var(--text)">
+                Total Parts Cost: $${(wo.parts_cost || 0).toFixed(2)}
+              </div>
+            ` : '<div class="empty-state-sm">No parts used yet</div>'}
           </div>
         </div>
       `;
@@ -420,6 +499,10 @@ const WorkOrders = {
                 <label for="wo-due">Due Date</label>
                 <input type="date" id="wo-due" class="form-control">
               </div>
+              <div class="form-group">
+                <label for="wo-est-hours">Estimated Hours</label>
+                <input type="number" id="wo-est-hours" class="form-control" step="0.5" min="0" placeholder="e.g., 2.5">
+              </div>
               <div id="wo-form-error" class="form-error" style="display:none"></div>
               <div class="form-actions">
                 <button type="button" class="btn btn-secondary" onclick="Router.navigate('#/workorders')">Cancel</button>
@@ -462,7 +545,8 @@ const WorkOrders = {
         status: document.getElementById('wo-status').value,
         assigned_to: document.getElementById('wo-assigned').value || null,
         team_id: document.getElementById('wo-team').value || null,
-        due_date: document.getElementById('wo-due').value || null
+        due_date: document.getElementById('wo-due').value || null,
+        estimated_hours: document.getElementById('wo-est-hours').value ? parseFloat(document.getElementById('wo-est-hours').value) : null
       };
       const result = await API.post('/workorders', body);
       App.toast('Work order created', 'success');
@@ -727,6 +811,157 @@ const WorkOrders = {
       await API.delete(`/workorders/${id}`);
       App.toast('Work order deleted', 'success');
       Router.navigate('#/workorders');
+    } catch (e) {
+      App.toast(e.message, 'error');
+    }
+  },
+
+  renderKanban(workorders) {
+    const statuses = ['open', 'in_progress', 'on_hold', 'completed'];
+    const labels = { open: 'Open', in_progress: 'In Progress', on_hold: 'On Hold', completed: 'Completed' };
+    const colors = { open: '#3B82F6', in_progress: '#F59E0B', on_hold: '#8B5CF6', completed: '#10B981' };
+
+    return `
+      <div class="kanban-board">
+        ${statuses.map(status => {
+          const items = workorders.filter(wo => wo.status === status);
+          return `
+            <div class="kanban-column">
+              <div class="kanban-column-header" style="border-top: 3px solid ${colors[status]}">
+                <span class="kanban-column-title">${labels[status]}</span>
+                <span class="kanban-column-count">${items.length}</span>
+              </div>
+              <div class="kanban-column-body">
+                ${items.length === 0 ? '<div class="kanban-empty">No work orders</div>' : items.map(wo => `
+                  <div class="kanban-card" onclick="Router.navigate('#/workorders/${wo.id}')">
+                    <div class="kanban-card-header">
+                      <span class="badge badge-${wo.priority}">${wo.priority}</span>
+                      <span class="kanban-card-id">#${wo.id}</span>
+                    </div>
+                    <div class="kanban-card-title">${wo.title}</div>
+                    ${wo.property_name ? `<div class="kanban-card-meta"><i data-lucide="building-2" class="icon-xs"></i> ${wo.property_name}</div>` : ''}
+                    ${wo.assigned_to_name ? `<div class="kanban-card-meta"><i data-lucide="user" class="icon-xs"></i> ${wo.assigned_to_name}</div>` : ''}
+                    ${wo.due_date ? `<div class="kanban-card-meta"><i data-lucide="calendar" class="icon-xs"></i> ${Dashboard.formatDate(wo.due_date)}</div>` : ''}
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  },
+
+  async showAddPartModal(woId) {
+    const modal = document.getElementById('modal-overlay');
+    modal.querySelector('.modal-title').textContent = 'Add Part Used';
+    modal.querySelector('.modal-body').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+    modal.querySelector('.modal-footer').innerHTML = '';
+    modal.style.display = 'flex';
+
+    try {
+      const partsData = await API.get('/parts');
+      const parts = Array.isArray(partsData) ? partsData : (partsData.data || partsData.parts || []);
+
+      modal.querySelector('.modal-body').innerHTML = `
+        <form id="add-part-form" onsubmit="WorkOrders.handleAddPart(event, '${woId}')">
+          <div class="form-group">
+            <label for="wo-part-select">Part *</label>
+            <select id="wo-part-select" class="form-control" required>
+              <option value="">Select part...</option>
+              ${parts.map(p => `<option value="${p.id}" data-stock="${p.quantity}" data-cost="${p.unit_cost}">${p.name} (${p.sku || 'No SKU'}) - Stock: ${p.quantity}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="wo-part-qty">Quantity Used *</label>
+            <input type="number" id="wo-part-qty" class="form-control" required min="0.01" step="any" value="1">
+          </div>
+          <div id="add-part-error" class="form-error" style="display:none"></div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="add-part-submit">Add Part</button>
+          </div>
+        </form>
+      `;
+    } catch (e) {
+      modal.querySelector('.modal-body').innerHTML = `<p class="text-danger">${e.message}</p>`;
+    }
+    lucide.createIcons();
+  },
+
+  async handleAddPart(e, woId) {
+    e.preventDefault();
+    const btn = document.getElementById('add-part-submit');
+    const errorEl = document.getElementById('add-part-error');
+    errorEl.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = 'Adding...';
+
+    try {
+      await API.post(`/workorders/${woId}/parts`, {
+        part_id: parseInt(document.getElementById('wo-part-select').value),
+        quantity_used: parseFloat(document.getElementById('wo-part-qty').value)
+      });
+      App.closeModal();
+      App.toast('Part added', 'success');
+      WorkOrders.detail({ id: woId });
+    } catch (err) {
+      errorEl.textContent = err.message;
+      errorEl.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Add Part';
+    }
+  },
+
+  async signOff(id) {
+    if (!confirm('Sign off on this completed work order?')) return;
+    try {
+      await API.post(`/workorders/${id}/sign-off`);
+      App.toast('Work order signed off', 'success');
+      WorkOrders.detail({ id });
+    } catch (e) {
+      App.toast(e.message, 'error');
+    }
+  },
+
+  async duplicate(id) {
+    try {
+      const result = await API.post(`/workorders/${id}/duplicate`);
+      App.toast('Work order duplicated', 'success');
+      Router.navigate(`#/workorders/${result.id}`);
+    } catch (e) {
+      App.toast(e.message, 'error');
+    }
+  },
+
+  toggleSelectAll(checked) {
+    document.querySelectorAll('.wo-select').forEach(cb => { cb.checked = checked; });
+    this.updateBulkBar();
+  },
+
+  updateBulkBar() {
+    const selected = document.querySelectorAll('.wo-select:checked');
+    const bar = document.getElementById('wo-bulk-bar');
+    const count = document.getElementById('wo-bulk-count');
+    if (!bar) return;
+    if (selected.length > 0) {
+      bar.style.display = 'flex';
+      count.textContent = `${selected.length} selected`;
+    } else {
+      bar.style.display = 'none';
+    }
+  },
+
+  async bulkStatusChange() {
+    const status = document.getElementById('wo-bulk-status').value;
+    if (!status) { App.toast('Select a status', 'error'); return; }
+    const ids = Array.from(document.querySelectorAll('.wo-select:checked')).map(cb => parseInt(cb.value));
+    if (ids.length === 0) return;
+    try {
+      const result = await API.post('/workorders/bulk/status', { work_order_ids: ids, status });
+      App.toast(`Updated ${result.updated} work orders`, 'success');
+      this.list();
     } catch (e) {
       App.toast(e.message, 'error');
     }

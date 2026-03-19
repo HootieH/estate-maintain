@@ -153,6 +153,7 @@ const Assets = {
             </button>
             <h1>${asset.name}</h1>
             <span class="badge badge-asset-${(asset.status || 'operational').replace(/\s+/g, '_')}">${(asset.status || 'operational').replace(/_/g, ' ')}</span>
+            ${asset.criticality ? `<span class="badge badge-${asset.criticality === 'critical' ? 'critical' : asset.criticality === 'high' ? 'high' : 'medium'}">${asset.criticality} criticality</span>` : ''}
           </div>
           <div class="page-header-actions">
             <button class="btn btn-secondary" onclick="Assets.edit('${params.id}')">
@@ -199,6 +200,14 @@ const Assets = {
                   <label>Warranty Expiry</label>
                   <p>${Dashboard.formatDate(asset.warranty_expiry)}</p>
                 </div>
+                <div class="detail-field">
+                  <label>Criticality</label>
+                  <p>${asset.criticality || 'Not set'}</p>
+                </div>
+                <div class="detail-field">
+                  <label>Replacement Cost</label>
+                  <p>${asset.replacement_cost ? '$' + asset.replacement_cost.toLocaleString() : '-'}</p>
+                </div>
                 <div class="detail-field detail-field-full">
                   <label>Notes</label>
                   <p>${asset.notes || '-'}</p>
@@ -244,6 +253,37 @@ const Assets = {
                 `).join('')}
               </div>
             `}
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+            <h3>Downtime</h3>
+            ${asset.active_downtime ? `
+              <button class="btn btn-success btn-sm" onclick="Assets.endDowntime('${params.id}')">
+                <i data-lucide="play"></i> End Downtime
+              </button>
+            ` : `
+              <button class="btn btn-danger btn-sm" onclick="Assets.startDowntime('${params.id}')">
+                <i data-lucide="pause"></i> Record Downtime
+              </button>
+            `}
+          </div>
+          <div class="card-body">
+            ${asset.active_downtime ? `
+              <div style="padding:12px;background:var(--danger-bg);border-radius:8px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+                <i data-lucide="alert-circle" style="color:var(--danger);width:20px;height:20px"></i>
+                <div>
+                  <strong style="color:var(--danger)">Currently Down</strong>
+                  <p style="margin:0;font-size:13px;color:var(--text-muted)">Since ${Dashboard.formatDate(asset.active_downtime.started_at)} ${asset.active_downtime.reason ? '— ' + asset.active_downtime.reason : ''}</p>
+                </div>
+              </div>
+            ` : ''}
+            <div id="downtime-history">
+              <button class="btn btn-sm btn-secondary" onclick="Assets.loadDowntimeHistory('${params.id}')">
+                <i data-lucide="history"></i> View History
+              </button>
+            </div>
           </div>
         </div>
 
@@ -447,6 +487,69 @@ const Assets = {
     }
   },
 
+  async startDowntime(assetId) {
+    const reason = prompt('Reason for downtime:');
+    if (reason === null) return;
+
+    const category = 'breakdown';
+    try {
+      await API.post(`/assets/${assetId}/downtime`, { reason, category });
+      App.toast('Downtime started', 'success');
+      Assets.detail({ id: assetId });
+    } catch (e) {
+      App.toast(e.message, 'error');
+    }
+  },
+
+  async endDowntime(assetId) {
+    try {
+      await API.put(`/assets/${assetId}/downtime/end`);
+      App.toast('Downtime ended', 'success');
+      Assets.detail({ id: assetId });
+    } catch (e) {
+      App.toast(e.message, 'error');
+    }
+  },
+
+  async loadDowntimeHistory(assetId) {
+    const el = document.getElementById('downtime-history');
+    if (!el) return;
+    el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+    try {
+      const data = await API.get(`/assets/${assetId}/downtime`);
+      if (!data.history || data.history.length === 0) {
+        el.innerHTML = '<div class="empty-state-sm">No downtime recorded</div>';
+        return;
+      }
+
+      el.innerHTML = `
+        <div style="margin-bottom:8px;font-size:13px;color:var(--text-muted)">Total Downtime: <strong>${data.totalHours} hours</strong></div>
+        <table class="table table-sm">
+          <thead><tr><th>Started</th><th>Ended</th><th>Duration</th><th>Reason</th><th>Category</th></tr></thead>
+          <tbody>
+            ${data.history.map(d => {
+              const start = new Date(d.started_at);
+              const end = d.ended_at ? new Date(d.ended_at) : new Date();
+              const hours = ((end - start) / (1000 * 60 * 60)).toFixed(1);
+              return `
+                <tr>
+                  <td>${Dashboard.formatDate(d.started_at)}</td>
+                  <td>${d.ended_at ? Dashboard.formatDate(d.ended_at) : '<span class="badge badge-critical">Active</span>'}</td>
+                  <td>${hours}h</td>
+                  <td>${d.reason || '-'}</td>
+                  <td>${d.category || '-'}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      `;
+    } catch (e) {
+      el.innerHTML = `<div class="error-state"><p>${e.message}</p></div>`;
+    }
+  },
+
   async form() {
     const container = document.getElementById('main-content');
     container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
@@ -511,6 +614,15 @@ const Assets = {
                     <option value="needs_repair">Needs Repair</option>
                     <option value="out_of_service">Out of Service</option>
                     <option value="retired">Retired</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="asset-criticality">Criticality</label>
+                  <select id="asset-criticality" class="form-control">
+                    <option value="low">Low</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
                   </select>
                 </div>
               </div>
@@ -612,6 +724,7 @@ const Assets = {
         property_id: document.getElementById('asset-property').value,
         location_id: document.getElementById('asset-location').value || null,
         status: document.getElementById('asset-status').value,
+        criticality: document.getElementById('asset-criticality').value,
         make: document.getElementById('asset-make').value || null,
         model: document.getElementById('asset-model').value || null,
         serial_number: document.getElementById('asset-serial').value || null,

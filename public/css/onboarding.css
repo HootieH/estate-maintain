@@ -1401,3 +1401,708 @@ h1 .tip-badge-icon {
     animation: none;
   }
 }
+
+/* ============================================
+   Kanban Board
+   ============================================ */
+
+.kanban-board {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 16px;
+  min-height: 400px;
+}
+
+.kanban-column {
+  min-width: 280px;
+  flex: 1;
+  background: var(--bg);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.kanban-column-header {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 10px 10px 0 0;
+}
+
+.kanban-column-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.kanban-column-count {
+  background: rgba(0,0,0,0.08);
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.kanban-column-body {
+  padding: 8px;
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kanban-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.kanban-card:hover {
+  box-shadow: var(--card-shadow-hover);
+  transform: translateY(-1px);
+}
+
+.kanban-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.kanban-card-id {
+  font-size: 11px;
+  color: var(--text-light);
+  font-weight: 500;
+}
+
+.kanban-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+  line-height: 1.3;
+}
+
+.kanban-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.kanban-empty {
+  text-align: center;
+  color: var(--text-light);
+  font-size: 13px;
+  padding: 24px 8px;
+}
+
+.icon-xs {
+  width: 12px;
+  height: 12px;
+}
+
+/* ============================================
+   View Toggle
+   ============================================ */
+
+.view-toggle {
+  display: flex;
+  gap: 4px;
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 4px;
+  margin-bottom: 16px;
+  width: fit-content;
+}
+
+.view-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.view-btn:hover {
+  color: var(--text);
+}
+
+.view-btn.active {
+  background: var(--card-bg);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.view-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ============================================
+   Bulk Action Bar
+   ============================================ */
+
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--primary);
+  color: white;
+  border-radius: 0 0 8px 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.bulk-bar .form-control {
+  background: rgba(255,255,255,0.15);
+  border-color: rgba(255,255,255,0.2);
+  color: white;
+}
+
+.bulk-bar .btn {
+  background: rgba(255,255,255,0.2);
+  border: none;
+  color: white;
+}
+
+.bulk-bar .btn:hover {
+  background: rgba(255,255,255,0.3);
+}
+
+/* ============================================
+   Calendar View
+   ============================================ */
+
+.calendar-view {
+  background: var(--card-bg);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.cal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cal-header h3 {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-bottom: 1px solid var(--border);
+}
+
+.cal-weekday {
+  padding: 8px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.cal-cell {
+  min-height: 90px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 4px;
+}
+
+.cal-cell:nth-child(7n) {
+  border-right: none;
+}
+
+.cal-empty {
+  background: var(--bg);
+}
+
+.cal-today {
+  background: #EFF6FF;
+}
+
+.cal-day {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 2px 4px;
+  margin-bottom: 2px;
+}
+
+.cal-today .cal-day {
+  color: var(--primary);
+  background: var(--primary-lighter);
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.cal-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  transition: background 0.15s;
+  overflow: hidden;
+}
+
+.cal-item:hover {
+  background: rgba(0,0,0,0.05);
+}
+
+.cal-item-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.cal-item-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+
+.cal-more {
+  font-size: 10px;
+  color: var(--primary-light);
+  padding: 1px 4px;
+  font-weight: 500;
+}
+
+/* ============================================
+   Global Search
+   ============================================ */
+
+.search-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 10001;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 15vh;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.search-overlay.search-visible {
+  opacity: 1;
+}
+
+.search-dialog {
+  background: var(--card-bg);
+  border-radius: 14px;
+  box-shadow: 0 25px 60px rgba(0,0,0,0.3);
+  width: 580px;
+  max-width: 95vw;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.search-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.search-input-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 16px;
+  background: none;
+  color: var(--text);
+}
+
+.search-kbd {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--text-muted);
+}
+
+.search-results {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.search-hints {
+  padding: 16px 18px;
+}
+
+.search-hint-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-light);
+  margin-bottom: 12px;
+}
+
+.search-hint-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.search-hint-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text);
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.search-hint-item:hover {
+  background: var(--bg);
+  text-decoration: none;
+  color: var(--text);
+}
+
+.search-hint-item svg {
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+}
+
+.search-group {
+  padding: 4px 0;
+}
+
+.search-group-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-light);
+  padding: 8px 18px 4px;
+}
+
+.search-result-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+  text-decoration: none;
+  color: var(--text);
+  transition: background 0.1s;
+}
+
+.search-result-item:hover {
+  background: var(--bg);
+  text-decoration: none;
+  color: var(--text);
+}
+
+.search-result-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.search-result-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.search-result-text strong {
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-result-text mark {
+  background: #FEF3C7;
+  color: inherit;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.search-empty, .search-loading {
+  padding: 40px 18px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.search-empty svg {
+  width: 32px;
+  height: 32px;
+  margin-bottom: 8px;
+  opacity: 0.4;
+}
+
+/* ============================================
+   Trend Chart
+   ============================================ */
+
+.trend-chart {
+  padding: 8px 0;
+}
+
+.trend-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  height: 100px;
+  padding: 0 8px;
+}
+
+.trend-bar-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.trend-bar-pair {
+  display: flex;
+  gap: 3px;
+  align-items: flex-end;
+  height: 80px;
+}
+
+.trend-bar {
+  width: 14px;
+  border-radius: 3px 3px 0 0;
+  transition: height 0.5s ease;
+}
+
+.trend-bar-created {
+  background: #3B82F6;
+}
+
+.trend-bar-completed {
+  background: #10B981;
+}
+
+.trend-bar-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.trend-legend {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  padding-top: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.trend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+/* ============================================
+   Dark Mode
+   ============================================ */
+
+[data-theme="dark"] {
+  --primary: #3B82F6;
+  --primary-light: #60A5FA;
+  --primary-lighter: #1E3A5F;
+  --sidebar-bg: #0B1120;
+  --bg: #0F172A;
+  --card-bg: #1E293B;
+  --card-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  --card-shadow-hover: 0 4px 12px rgba(0,0,0,0.4);
+  --text: #E2E8F0;
+  --text-muted: #94A3B8;
+  --text-light: #64748B;
+  --border: #334155;
+  --input-border: #475569;
+  --input-focus: #60A5FA;
+  --critical-bg: #450A0A;
+  --high-bg: #451A03;
+  --medium-bg: #1E3A5F;
+  --low-bg: #1E293B;
+  --success-bg: #052E16;
+  --warning-bg: #451A03;
+  --danger-bg: #450A0A;
+}
+
+[data-theme="dark"] .form-control {
+  background: #0F172A;
+  border-color: #475569;
+  color: #E2E8F0;
+}
+
+[data-theme="dark"] .table th {
+  background: #0F172A;
+  color: #94A3B8;
+}
+
+[data-theme="dark"] .table td {
+  border-color: #334155;
+}
+
+[data-theme="dark"] .kanban-column {
+  background: #0F172A;
+}
+
+[data-theme="dark"] .cal-empty {
+  background: #0B1120;
+}
+
+[data-theme="dark"] .cal-today {
+  background: #1E3A5F;
+}
+
+[data-theme="dark"] .search-result-text mark {
+  background: #854D0E;
+}
+
+[data-theme="dark"] .login-card {
+  background: #1E293B;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .modal {
+  background: #1E293B;
+}
+
+/* ============================================
+   Dark Mode Toggle Button
+   ============================================ */
+
+.theme-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  transition: all 0.2s;
+}
+
+.theme-toggle:hover {
+  background: rgba(0,0,0,0.06);
+  color: var(--text);
+}
+
+.theme-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ============================================
+   Print Styles
+   ============================================ */
+
+@media print {
+  #sidebar, #topbar, .btn, .toast-container, .notification-panel, .bulk-bar, .view-toggle, .filters-bar {
+    display: none !important;
+  }
+
+  #content-wrapper {
+    margin-left: 0 !important;
+  }
+
+  .card {
+    box-shadow: none;
+    border: 1px solid #ddd;
+    break-inside: avoid;
+  }
+
+  body {
+    background: white;
+    color: black;
+  }
+}
+
+/* ============================================
+   CSV Export Button
+   ============================================ */
+
+.export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.export-btn:hover {
+  border-color: var(--primary-light);
+  color: var(--primary);
+}
+
+.export-btn svg {
+  width: 14px;
+  height: 14px;
+}

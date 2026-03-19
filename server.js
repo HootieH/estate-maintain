@@ -27,6 +27,12 @@ const locationRoutes = require('./src/routes/locations');
 const vendorRoutes = require('./src/routes/vendors');
 const purchaseOrderRoutes = require('./src/routes/purchaseorders');
 const onboardingRoutes = require('./src/routes/onboarding');
+const tagRoutes = require('./src/routes/tags');
+const favoriteRoutes = require('./src/routes/favorites');
+const templateRoutes = require('./src/routes/templates');
+const searchRoutes = require('./src/routes/search');
+const exportRoutes = require('./src/routes/export');
+const settingsApiRoutes = require('./src/routes/settings-api');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -57,6 +63,12 @@ app.use('/api/locations', locationRoutes);
 app.use('/api/vendors', vendorRoutes);
 app.use('/api/purchaseorders', purchaseOrderRoutes);
 app.use('/api/onboarding', onboardingRoutes);
+app.use('/api/tags', authenticate, tagRoutes);
+app.use('/api/favorites', authenticate, favoriteRoutes);
+app.use('/api/templates', templateRoutes);
+app.use('/api/search', authenticate, searchRoutes);
+app.use('/api/export', authenticate, exportRoutes);
+app.use('/api/settings-api', settingsApiRoutes);
 
 // Serve public request page before SPA fallback
 app.get('/request', (req, res) => {
@@ -111,6 +123,48 @@ cron.schedule('0 0 * * *', () => {
     }
   } catch (err) {
     console.error('[CRON] Preventive maintenance check failed:', err.message);
+  }
+});
+
+// Recurring work order cron job - runs daily at 00:05
+cron.schedule('5 0 * * *', () => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const dueSchedules = db.prepare(
+      "SELECT rs.*, wot.* FROM recurring_schedules rs JOIN work_order_templates wot ON rs.template_id = wot.id WHERE rs.is_active = 1 AND rs.next_due <= ?"
+    ).all(today);
+
+    for (const sched of dueSchedules) {
+      const result = db.prepare(`
+        INSERT INTO work_orders (title, description, property_id, asset_id, assigned_to, assigned_team_id, priority, status, category, template_id, estimated_hours)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)
+      `).run(
+        sched.title, sched.description, sched.property_id, sched.asset_id,
+        sched.assigned_to, sched.assigned_team_id, sched.priority || 'medium',
+        sched.category, sched.template_id, sched.estimated_hours
+      );
+
+      logActivity('work_order', result.lastInsertRowid, 'created', `Auto-created from recurring template "${sched.title}"`, null);
+
+      // Calculate next due
+      const nextDate = new Date(sched.next_due);
+      switch (sched.frequency) {
+        case 'daily': nextDate.setDate(nextDate.getDate() + 1); break;
+        case 'weekly': nextDate.setDate(nextDate.getDate() + 7); break;
+        case 'biweekly': nextDate.setDate(nextDate.getDate() + 14); break;
+        case 'monthly': nextDate.setMonth(nextDate.getMonth() + 1); break;
+        case 'quarterly': nextDate.setMonth(nextDate.getMonth() + 3); break;
+        case 'semiannual': nextDate.setMonth(nextDate.getMonth() + 6); break;
+        case 'annual': nextDate.setFullYear(nextDate.getFullYear() + 1); break;
+      }
+      db.prepare('UPDATE recurring_schedules SET next_due = ? WHERE id = ?').run(nextDate.toISOString().split('T')[0], sched.id);
+    }
+
+    if (dueSchedules.length > 0) {
+      console.log(`[CRON] Created ${dueSchedules.length} work orders from recurring templates`);
+    }
+  } catch (err) {
+    console.error('[CRON] Recurring schedule check failed:', err.message);
   }
 });
 
