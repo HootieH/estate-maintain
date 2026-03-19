@@ -1,6 +1,7 @@
 const express = require('express');
 const { db, logActivity, createNotification } = require('../db');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { getPropertyScope } = require('../middleware/permissions');
 
 const router = express.Router();
 
@@ -25,6 +26,16 @@ router.get('/', (req, res) => {
     `;
     const conditions = [];
     const params = [];
+
+    // Property scoping — users only see work orders from properties they have access to
+    const scope = getPropertyScope(req.user.id);
+    if (scope !== null) {
+      if (scope.length === 0) {
+        return res.json({ data: [], total: 0, page: 1, limit: 25 });
+      }
+      conditions.push(`wo.property_id IN (${scope.map(() => '?').join(',')})`);
+      params.push(...scope);
+    }
 
     if (req.query.status) {
       conditions.push('wo.status = ?');

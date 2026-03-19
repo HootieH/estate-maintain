@@ -786,6 +786,20 @@ try {
   // user_teams already populated or no data to migrate
 }
 
+// Owner flag migration
+try {
+  db.prepare("SELECT is_owner FROM users LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE users ADD COLUMN is_owner INTEGER DEFAULT 0");
+}
+
+// Property-scoped invites migration
+try {
+  db.prepare("SELECT property_ids FROM invite_tokens LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE invite_tokens ADD COLUMN property_ids TEXT");
+}
+
 // Seed permissions (idempotent)
 const permissionDefs = [
   ['workorders', 'view'], ['workorders', 'create'], ['workorders', 'edit'], ['workorders', 'delete'],

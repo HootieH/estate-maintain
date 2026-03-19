@@ -183,9 +183,10 @@ const App = {
 
   updateSidebarDiscovery() {
     const visited = JSON.parse(localStorage.getItem('visited_sections') || '[]');
-    const allSections = ['workorders','requests','preventive','properties','assets',
-                         'procedures','parts','vendors','purchaseorders','invoices',
-                         'projects','messages','teams','reports','settings','integrations'];
+    const allSections = ['workorders','requests','preventive','reviews','approvals',
+                         'properties','assets','procedures',
+                         'parts','vendors','purchaseorders','invoices','projects',
+                         'messages','users','teams','audit','reports','settings','integrations'];
 
     document.querySelectorAll('.nav-item').forEach(item => {
       const route = item.dataset.route;
@@ -364,11 +365,11 @@ const App = {
 
   expandSectionForRoute(route) {
     const sectionMap = {
-      workorders: 'work', requests: 'work', preventive: 'work',
+      workorders: 'work', requests: 'work', preventive: 'work', reviews: 'work', approvals: 'work',
       properties: 'estate', assets: 'estate', procedures: 'estate',
       parts: 'procurement', vendors: 'procurement', purchaseorders: 'procurement',
       invoices: 'procurement', projects: 'procurement',
-      teams: 'admin', reports: 'admin', settings: 'admin', integrations: 'admin'
+      users: 'admin', teams: 'admin', audit: 'admin', reports: 'admin', settings: 'admin', integrations: 'admin'
     };
     const section = sectionMap[route];
     if (section) {

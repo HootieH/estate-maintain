@@ -13,7 +13,7 @@ function authenticate(req, res, next) {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
 
     // Check user is still active
-    const user = db.prepare('SELECT id, status, role, is_team_lead FROM users WHERE id = ?').get(payload.id);
+    const user = db.prepare('SELECT id, status, role, is_team_lead, is_owner FROM users WHERE id = ?').get(payload.id);
     if (!user || (user.status !== 'active' && user.status !== null)) {
       // Allow null status for backwards compatibility before migration
       if (user && user.status !== null) {
@@ -34,6 +34,7 @@ function authenticate(req, res, next) {
       role: user ? user.role : payload.role,
       team_ids,
       is_team_lead: user ? !!user.is_team_lead : false,
+      is_owner: user ? !!user.is_owner : false,
       permissions: getEffectivePermissions(payload.id),
     };
     next();

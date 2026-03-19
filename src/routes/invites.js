@@ -4,7 +4,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { db, logActivity } = require('../db');
 const { authenticate } = require('../middleware/auth');
-const { requirePermission } = require('../middleware/permissions');
+const { requirePermission, grantPropertyAccess } = require('../middleware/permissions');
 
 const router = express.Router();
 
@@ -24,7 +24,7 @@ function sanitizeUser(user) {
 // POST / — Create invitation
 router.post('/', authenticate, requirePermission('users:create'), (req, res) => {
   try {
-    const { email, role, team_id } = req.body;
+    const { email, role, team_id, property_ids } = req.body;
 
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
@@ -42,12 +42,15 @@ router.post('/', authenticate, requirePermission('users:create'), (req, res) => 
       return res.status(409).json({ error: 'A pending invitation already exists for this email' });
     }
 
+    // property_ids can be an array [1,2,3] or a single id
+    const propIds = Array.isArray(property_ids) ? property_ids : (property_ids ? [property_ids] : []);
+
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
     const result = db.prepare(
-      'INSERT INTO invite_tokens (email, token, role, team_id, invited_by, expires_at) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run(email, token, role || 'technician', team_id || null, req.user.id, expiresAt);
+      'INSERT INTO invite_tokens (email, token, role, team_id, invited_by, expires_at, property_ids) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(email, token, role || 'technician', team_id || null, req.user.id, expiresAt, propIds.length > 0 ? JSON.stringify(propIds) : null);
 
     const invite = db.prepare('SELECT * FROM invite_tokens WHERE id = ?').get(result.lastInsertRowid);
 
@@ -104,7 +107,19 @@ router.get('/validate', (req, res) => {
     if (invite.accepted_at) return res.status(410).json({ error: 'This invitation has already been used' });
     if (new Date(invite.expires_at) < new Date()) return res.status(410).json({ error: 'This invitation has expired' });
 
-    res.json({ email: invite.email, role: invite.role });
+    // Include property names so the invitee knows what they're joining
+    let properties = [];
+    if (invite.property_ids) {
+      try {
+        const ids = JSON.parse(invite.property_ids);
+        if (ids.length > 0) {
+          const ph = ids.map(() => '?').join(',');
+          properties = db.prepare(`SELECT id, name FROM properties WHERE id IN (${ph})`).all(...ids);
+        }
+      } catch (_) {}
+    }
+
+    res.json({ email: invite.email, role: invite.role, properties });
   } catch (err) {
     res.status(500).json({ error: 'Validation failed', details: err.message });
   }
@@ -145,9 +160,21 @@ router.post('/accept', async (req, res) => {
       'INSERT INTO users (email, password_hash, name, role, status) VALUES (?, ?, ?, ?, ?)'
     ).run(invite.email, passwordHash, name, invite.role, 'active');
 
-    // If invite has team_id, add to junction table
+    const newUserId = userResult.lastInsertRowid;
+
+    // Add to team if specified
     if (invite.team_id) {
-      db.prepare('INSERT OR IGNORE INTO user_teams (user_id, team_id) VALUES (?, ?)').run(userResult.lastInsertRowid, invite.team_id);
+      db.prepare('INSERT OR IGNORE INTO user_teams (user_id, team_id) VALUES (?, ?)').run(newUserId, invite.team_id);
+    }
+
+    // Grant property access from the invite
+    if (invite.property_ids) {
+      try {
+        const propIds = JSON.parse(invite.property_ids);
+        for (const pid of propIds) {
+          grantPropertyAccess(newUserId, pid, invite.invited_by);
+        }
+      } catch (_) {}
     }
 
     db.prepare('UPDATE invite_tokens SET accepted_at = CURRENT_TIMESTAMP WHERE id = ?').run(invite.id);

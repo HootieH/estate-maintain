@@ -58,13 +58,15 @@ function requirePermission(...perms) {
 }
 
 /**
- * Get property IDs a user has access to, or null if no scoping needed.
- * ALL users are scoped to properties they created or were granted access to.
- * Returns null only if no property access records exist yet (fresh account in onboarding).
+ * Get property IDs a user has access to.
+ * - Owner (is_owner=1): null (sees everything — system-level access, set only via CLI)
+ * - Everyone else: scoped to their user_property_access records
+ * - Empty records = empty view (user sees nothing until granted access or creates a property)
  */
 function getPropertyScope(userId) {
+  const user = db.prepare('SELECT is_owner FROM users WHERE id = ?').get(userId);
+  if (user && user.is_owner) return null; // owner sees all
   const rows = db.prepare('SELECT property_id FROM user_property_access WHERE user_id = ?').all(userId);
-  if (rows.length === 0) return null; // no access records = show all (onboarding / backwards compat)
   return rows.map(r => r.property_id);
 }
 
