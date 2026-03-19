@@ -446,7 +446,7 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS integration_configs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    provider TEXT NOT NULL CHECK(provider IN ('billcom','quickbooks')),
+    provider TEXT NOT NULL CHECK(provider IN ('billcom','quickbooks','google_drive')),
     config_key TEXT NOT NULL,
     config_value TEXT,
     is_secret INTEGER DEFAULT 0,
@@ -783,6 +783,33 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(location_id, procedure_id)
   );
+
+  CREATE TABLE IF NOT EXISTS attachments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_type TEXT NOT NULL,
+    entity_id INTEGER NOT NULL,
+    provider TEXT DEFAULT 'google_drive',
+    external_file_id TEXT,
+    filename TEXT NOT NULL,
+    mime_type TEXT,
+    thumbnail_url TEXT,
+    web_view_link TEXT,
+    web_content_link TEXT,
+    size_bytes INTEGER,
+    uploaded_by INTEGER REFERENCES users(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS attachment_folders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_type TEXT NOT NULL,
+    entity_id INTEGER NOT NULL,
+    provider TEXT DEFAULT 'google_drive',
+    folder_id TEXT NOT NULL,
+    folder_name TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(entity_type, entity_id, provider)
+  );
 `);
 
 // Migrations for existing databases
@@ -972,6 +999,27 @@ try {
     INSERT INTO notifications_new SELECT * FROM notifications;
     DROP TABLE notifications;
     ALTER TABLE notifications_new RENAME TO notifications;
+  `);
+}
+
+// Widen integration_configs.provider CHECK to include 'google_drive'
+try {
+  db.exec(`INSERT INTO integration_configs (provider, config_key, config_value) VALUES ('google_drive', '__migration_test__', '__test__')`);
+  db.exec(`DELETE FROM integration_configs WHERE config_key = '__migration_test__'`);
+} catch (e) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS integration_configs_new (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      provider TEXT NOT NULL CHECK(provider IN ('billcom','quickbooks','google_drive')),
+      config_key TEXT NOT NULL,
+      config_value TEXT,
+      is_secret INTEGER DEFAULT 0,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(provider, config_key)
+    );
+    INSERT INTO integration_configs_new SELECT * FROM integration_configs;
+    DROP TABLE integration_configs;
+    ALTER TABLE integration_configs_new RENAME TO integration_configs;
   `);
 }
 

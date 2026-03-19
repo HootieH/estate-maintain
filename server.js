@@ -44,13 +44,14 @@ const auditRoutes = require('./src/routes/audit');
 const reviewRoutes = require('./src/routes/reviews');
 const approvalRoutes = require('./src/routes/approvals');
 const delegationRoutes = require('./src/routes/delegations');
+const attachmentRoutes = require('./src/routes/attachments');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // API Routes
@@ -91,6 +92,7 @@ app.use('/api/audit', auditRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/approvals', approvalRoutes);
 app.use('/api/delegations', delegationRoutes);
+app.use('/api/attachments', attachmentRoutes);
 
 // Serve public pages before SPA fallback
 app.get('/request', (req, res) => {
@@ -235,6 +237,17 @@ app.get('/scan/:type/:id', (req, res) => {
     res.redirect(`/#${route}`);
   } else {
     res.redirect('/#/dashboard');
+  }
+});
+
+// Google Drive OAuth callback (must be before SPA fallback)
+app.get('/api/integrations/google-drive/callback', async (req, res) => {
+  try {
+    const GoogleDriveService = require('./src/services/google-drive');
+    await GoogleDriveService.handleCallback(req.query.code);
+    res.redirect('/#/integrations?google_drive=connected');
+  } catch (err) {
+    res.redirect(`/#/integrations?google_drive=error&message=${encodeURIComponent(err.message)}`);
   }
 });
 

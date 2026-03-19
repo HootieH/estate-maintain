@@ -4,9 +4,9 @@ const Integrations = {
     container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading integrations...</p></div>';
 
     try {
-      const [status, config] = await Promise.all([
+      const [status, driveStatus] = await Promise.all([
         API.get('/integrations/status').catch(() => ({ billcom: {}, quickbooks: {} })),
-        Promise.resolve({}) // configs loaded per-card
+        API.get('/attachments/status/check').catch(() => ({ connected: false }))
       ]);
 
       container.innerHTML = `
@@ -18,9 +18,10 @@ const Integrations = {
           Connect your accounting tools to streamline the payment workflow. Approved invoices flow to Bill.com for payment, and Bill.com syncs with QuickBooks for accounting records.
         </p>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:32px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:32px">
           ${this.renderBillcomCard(status.billcom)}
           ${this.renderQBOCard(status.quickbooks)}
+          ${this.renderDriveCard(driveStatus)}
         </div>
 
         <div class="card" style="margin-bottom:24px">

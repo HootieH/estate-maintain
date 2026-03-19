@@ -9,7 +9,22 @@ router.use(authenticate);
 router.get('/status', (req, res) => {
   try {
     const SyncService = require('../services/sync');
-    res.json(SyncService.getConnectionStatus());
+    const status = SyncService.getConnectionStatus();
+
+    // Add Google Drive status
+    try {
+      const GoogleDriveService = require('../services/google-drive');
+      status.google_drive = {
+        connected: GoogleDriveService.isConnected(),
+        connectedAt: GoogleDriveService.getConfig('connected_at'),
+        useSharedDrive: GoogleDriveService.getConfig('use_shared_drive') === 'true',
+        rootFolderId: GoogleDriveService.getConfig('root_folder_id')
+      };
+    } catch {
+      status.google_drive = { connected: false };
+    }
+
+    res.json(status);
   } catch (err) {
     res.status(500).json({ error: 'Failed to get status', details: err.message });
   }
@@ -193,6 +208,57 @@ router.get('/config/:provider', requireRole('admin'), (req, res) => {
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch config', details: err.message });
+  }
+});
+
+// --- Google Drive ---
+
+// POST /google-drive/config - Save Google Drive credentials (admin only)
+router.post('/google-drive/config', requireRole('admin'), (req, res) => {
+  try {
+    const GoogleDriveService = require('../services/google-drive');
+    const { client_id, client_secret, redirect_uri, use_shared_drive, organization_name } = req.body;
+    if (client_id) GoogleDriveService.setConfig('client_id', client_id, true);
+    if (client_secret) GoogleDriveService.setConfig('client_secret', client_secret, true);
+    if (redirect_uri) GoogleDriveService.setConfig('redirect_uri', redirect_uri, false);
+    if (use_shared_drive !== undefined) GoogleDriveService.setConfig('use_shared_drive', use_shared_drive, false);
+    if (organization_name) GoogleDriveService.setConfig('organization_name', organization_name, false);
+    res.json({ message: 'Google Drive configuration saved' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to save config', details: err.message });
+  }
+});
+
+// GET /google-drive/auth - Get OAuth URL
+router.get('/google-drive/auth', requireRole('admin'), (req, res) => {
+  try {
+    const GoogleDriveService = require('../services/google-drive');
+    const url = GoogleDriveService.getAuthorizationUrl();
+    res.json({ url });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// GET /google-drive/callback - OAuth callback
+router.get('/google-drive/callback', async (req, res) => {
+  try {
+    const GoogleDriveService = require('../services/google-drive');
+    await GoogleDriveService.handleCallback(req.query.code);
+    res.redirect('/#/integrations?google_drive=connected');
+  } catch (err) {
+    res.redirect(`/#/integrations?google_drive=error&message=${encodeURIComponent(err.message)}`);
+  }
+});
+
+// POST /google-drive/disconnect
+router.post('/google-drive/disconnect', requireRole('admin'), (req, res) => {
+  try {
+    const GoogleDriveService = require('../services/google-drive');
+    GoogleDriveService.disconnect();
+    res.json({ message: 'Google Drive disconnected' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to disconnect', details: err.message });
   }
 });
 
