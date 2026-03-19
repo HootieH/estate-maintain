@@ -176,6 +176,10 @@ const Preventive = {
                   <label>Assigned To</label>
                   <p>${pm.assigned_to_name || '-'}</p>
                 </div>
+                <div class="detail-field">
+                  <label>Procedure</label>
+                  <p>${pm.procedure_title ? `<a href="#/procedures/${pm.procedure_id}">${pm.procedure_title}</a>` : 'None attached'}</p>
+                </div>
                 <div class="detail-field detail-field-full">
                   <label>Description</label>
                   <p>${pm.description || '-'}</p>
@@ -218,14 +222,16 @@ const Preventive = {
     container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
     try {
-      const [assetData, propData, userData] = await Promise.all([
+      const [assetData, propData, userData, procData] = await Promise.all([
         API.get('/assets').catch(() => []),
         API.get('/properties').catch(() => []),
-        API.get('/users').catch(() => [])
+        API.get('/users').catch(() => []),
+        API.get('/procedures').catch(() => [])
       ]);
       const assets = Array.isArray(assetData) ? assetData : (assetData.data || assetData.assets || []);
       const properties = Array.isArray(propData) ? propData : (propData.data || propData.properties || []);
       const users = Array.isArray(userData) ? userData : (userData.data || userData.users || []);
+      const procedures = Array.isArray(procData) ? procData : (procData.data || procData.procedures || []);
 
       // Store assets for property auto-select
       Preventive._formAssets = assets;
@@ -274,6 +280,14 @@ const Preventive = {
                     ${users.map(u => `<option value="${u.id}">${u.name}</option>`).join('')}
                   </select>
                 </div>
+              </div>
+              <div class="form-group">
+                <label for="pm-procedure">Procedure <span class="tip-trigger" data-tip="procedure"><i data-lucide="help-circle" class="tip-badge-icon"></i></span></label>
+                <select id="pm-procedure" class="form-control">
+                  <option value="">No procedure</option>
+                  ${procedures.map(p => `<option value="${p.id}">${p.title}</option>`).join('')}
+                </select>
+                <small style="color:var(--text-muted);font-size:12px">Attached procedure will auto-apply to work orders created from this schedule</small>
               </div>
               <div class="form-row">
                 <div class="form-group">
@@ -333,7 +347,8 @@ const Preventive = {
         asset_id: document.getElementById('pm-asset').value || null,
         assigned_to: document.getElementById('pm-assigned').value || null,
         frequency: document.getElementById('pm-frequency').value,
-        next_due: document.getElementById('pm-next-due').value
+        next_due: document.getElementById('pm-next-due').value,
+        procedure_id: document.getElementById('pm-procedure').value || null
       };
       const result = await API.post('/preventive', body);
       App.toast('Schedule created', 'success');
@@ -352,13 +367,15 @@ const Preventive = {
     container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
     try {
-      const [pm, assetData, userData] = await Promise.all([
+      const [pm, assetData, userData, procData] = await Promise.all([
         API.get(`/preventive/${id}`),
         API.get('/assets').catch(() => []),
-        API.get('/users').catch(() => [])
+        API.get('/users').catch(() => []),
+        API.get('/procedures').catch(() => [])
       ]);
       const assets = Array.isArray(assetData) ? assetData : (assetData.data || assetData.assets || []);
       const users = Array.isArray(userData) ? userData : (userData.data || userData.users || []);
+      const procedures = Array.isArray(procData) ? procData : (procData.data || procData.procedures || []);
       const frequencies = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'semiannual', 'annual'];
 
       container.innerHTML = `
@@ -396,6 +413,14 @@ const Preventive = {
                     ${users.map(u => `<option value="${u.id}" ${String(pm.assigned_to) === String(u.id) ? 'selected' : ''}>${u.name}</option>`).join('')}
                   </select>
                 </div>
+              </div>
+              <div class="form-group">
+                <label for="pm-procedure">Procedure <span class="tip-trigger" data-tip="procedure"><i data-lucide="help-circle" class="tip-badge-icon"></i></span></label>
+                <select id="pm-procedure" class="form-control">
+                  <option value="">No procedure</option>
+                  ${procedures.map(p => `<option value="${p.id}" ${String(pm.procedure_id) === String(p.id) ? 'selected' : ''}>${p.title}</option>`).join('')}
+                </select>
+                <small style="color:var(--text-muted);font-size:12px">Attached procedure will auto-apply to work orders created from this schedule</small>
               </div>
               <div class="form-row">
                 <div class="form-group">
@@ -439,7 +464,8 @@ const Preventive = {
         asset_id: document.getElementById('pm-asset').value || null,
         assigned_to: document.getElementById('pm-assigned').value || null,
         frequency: document.getElementById('pm-frequency').value,
-        next_due: document.getElementById('pm-next-due').value
+        next_due: document.getElementById('pm-next-due').value,
+        procedure_id: document.getElementById('pm-procedure').value || null
       };
       await API.put(`/preventive/${id}`, body);
       App.toast('Schedule updated', 'success');

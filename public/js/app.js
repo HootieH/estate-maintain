@@ -185,7 +185,7 @@ const App = {
       workorders: {
         icon: 'clipboard-list',
         title: 'Work Orders',
-        text: 'Track every maintenance task from request to completion. Assign priorities, team members, and due dates. Add comments to keep everyone updated.',
+        text: 'The core of your maintenance operation. Every task lives here — whether created manually, generated from a preventive maintenance schedule, built from a template, or approved from a work request. Track assignments, priorities, parts used, time logged, and procedures.',
         color: '#3B82F6'
       },
       properties: {
@@ -203,7 +203,7 @@ const App = {
       preventive: {
         icon: 'calendar-clock',
         title: 'Preventive Maintenance',
-        text: 'Schedule recurring maintenance before things break. Set frequencies from daily to annual — the system auto-creates work orders when tasks come due.',
+        text: 'Schedule recurring maintenance BEFORE things break. Set frequencies from daily to annual — the system auto-creates work orders when tasks come due. Attach a procedure to each schedule so technicians always know exactly what steps to follow.',
         color: '#F59E0B'
       },
       parts: {
@@ -233,13 +233,13 @@ const App = {
       procedures: {
         icon: 'clipboard-check',
         title: 'Procedures',
-        text: 'Create reusable checklists for common tasks. Attach them to work orders to ensure consistent, quality maintenance every time.',
+        text: 'Procedures define HOW to do a task — step-by-step checklists that ensure consistent quality. Create procedure templates here, then attach them to work orders or preventive maintenance schedules. When a PM schedule fires, its procedure auto-attaches to the new work order.',
         color: '#F97316'
       },
       requests: {
         icon: 'inbox',
         title: 'Work Requests',
-        text: 'Residents and staff submit requests via a public form — no login needed. Review, approve, or decline from here.',
+        text: 'This is your intake queue. Residents, tenants, and guests submit requests through a public form — no login needed. You review each request and either approve it (which creates a real work order) or decline it. Requests are NOT work orders until you approve them.',
         color: '#06B6D4'
       },
       messages: {

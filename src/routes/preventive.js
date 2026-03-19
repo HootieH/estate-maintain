@@ -24,11 +24,12 @@ function calculateNextDue(frequency, fromDate) {
 router.get('/', (req, res) => {
   try {
     let sql = `
-      SELECT ps.*, p.name AS property_name, a.name AS asset_name, t.name AS team_name
+      SELECT ps.*, p.name AS property_name, a.name AS asset_name, t.name AS team_name, pr.title AS procedure_title
       FROM preventive_schedules ps
       LEFT JOIN properties p ON ps.property_id = p.id
       LEFT JOIN assets a ON ps.asset_id = a.id
       LEFT JOIN teams t ON ps.assigned_team_id = t.id
+      LEFT JOIN procedures pr ON ps.procedure_id = pr.id
     `;
     const conditions = [];
     const params = [];
@@ -75,11 +76,12 @@ router.get('/', (req, res) => {
 router.get('/:id', (req, res) => {
   try {
     const schedule = db.prepare(`
-      SELECT ps.*, p.name AS property_name, a.name AS asset_name, t.name AS team_name
+      SELECT ps.*, p.name AS property_name, a.name AS asset_name, t.name AS team_name, pr.title AS procedure_title
       FROM preventive_schedules ps
       LEFT JOIN properties p ON ps.property_id = p.id
       LEFT JOIN assets a ON ps.asset_id = a.id
       LEFT JOIN teams t ON ps.assigned_team_id = t.id
+      LEFT JOIN procedures pr ON ps.procedure_id = pr.id
       WHERE ps.id = ?
     `).get(req.params.id);
 
@@ -96,7 +98,7 @@ router.get('/:id', (req, res) => {
 // POST /
 router.post('/', requireRole('admin', 'manager'), (req, res) => {
   try {
-    const { title, description, property_id, asset_id, assigned_team_id, frequency, next_due, category, priority, is_active } = req.body;
+    const { title, description, property_id, asset_id, assigned_team_id, frequency, next_due, category, priority, is_active, procedure_id } = req.body;
 
     if (!title || !property_id || !frequency) {
       return res.status(400).json({ error: 'Title, property_id, and frequency are required' });
@@ -105,13 +107,14 @@ router.post('/', requireRole('admin', 'manager'), (req, res) => {
     const computedNextDue = next_due || calculateNextDue(frequency);
 
     const result = db.prepare(`
-      INSERT INTO preventive_schedules (title, description, property_id, asset_id, assigned_team_id, frequency, next_due, category, priority, is_active)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO preventive_schedules (title, description, property_id, asset_id, assigned_team_id, frequency, next_due, category, priority, is_active, procedure_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       title, description || null, property_id,
       asset_id || null, assigned_team_id || null,
       frequency, computedNextDue, category || null,
-      priority || 'medium', is_active !== undefined ? is_active : 1
+      priority || 'medium', is_active !== undefined ? is_active : 1,
+      procedure_id || null
     );
 
     const schedule = db.prepare('SELECT * FROM preventive_schedules WHERE id = ?').get(result.lastInsertRowid);
@@ -131,12 +134,13 @@ router.put('/:id', requireRole('admin', 'manager'), (req, res) => {
       return res.status(404).json({ error: 'Preventive schedule not found' });
     }
 
-    const { title, description, property_id, asset_id, assigned_team_id, frequency, next_due, category, priority, is_active } = req.body;
+    const { title, description, property_id, asset_id, assigned_team_id, frequency, next_due, category, priority, is_active, procedure_id } = req.body;
 
     db.prepare(`
       UPDATE preventive_schedules SET
         title = ?, description = ?, property_id = ?, asset_id = ?, assigned_team_id = ?,
-        frequency = ?, next_due = ?, category = ?, priority = ?, is_active = ?
+        frequency = ?, next_due = ?, category = ?, priority = ?, is_active = ?,
+        procedure_id = ?
       WHERE id = ?
     `).run(
       title || existing.title,
@@ -149,6 +153,7 @@ router.put('/:id', requireRole('admin', 'manager'), (req, res) => {
       category !== undefined ? category : existing.category,
       priority || existing.priority,
       is_active !== undefined ? is_active : existing.is_active,
+      procedure_id !== undefined ? procedure_id : existing.procedure_id,
       req.params.id
     );
 
@@ -191,6 +196,11 @@ router.post('/:id/complete', (req, res) => {
         schedule.category,
         req.user.id
       );
+
+      // Auto-attach procedure if schedule has one
+      if (schedule.procedure_id) {
+        db.prepare('INSERT INTO work_order_procedures (work_order_id, procedure_id) VALUES (?, ?)').run(woResult.lastInsertRowid, schedule.procedure_id);
+      }
 
       workOrder = db.prepare('SELECT * FROM work_orders WHERE id = ?').get(woResult.lastInsertRowid);
       db.prepare('UPDATE work_orders SET completed_at = CURRENT_TIMESTAMP WHERE id = ?').run(workOrder.id);

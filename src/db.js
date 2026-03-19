@@ -454,6 +454,12 @@ try {
 }
 
 try {
+  db.prepare("SELECT procedure_id FROM preventive_schedules LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE preventive_schedules ADD COLUMN procedure_id INTEGER REFERENCES procedures(id)");
+}
+
+try {
   db.prepare("SELECT description FROM procedure_steps LIMIT 1").get();
 } catch (e) {
   db.exec("ALTER TABLE procedure_steps ADD COLUMN description TEXT");

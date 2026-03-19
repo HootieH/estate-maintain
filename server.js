@@ -100,6 +100,11 @@ cron.schedule('0 0 * * *', () => {
 
       logActivity('work_order', result.lastInsertRowid, 'created', `Auto-created from preventive schedule "${schedule.title}"`, null);
 
+      // Auto-attach procedure if PM schedule has one
+      if (schedule.procedure_id) {
+        db.prepare('INSERT INTO work_order_procedures (work_order_id, procedure_id) VALUES (?, ?)').run(result.lastInsertRowid, schedule.procedure_id);
+      }
+
       // Calculate and update next_due
       const nextDate = new Date(schedule.next_due);
       switch (schedule.frequency) {
