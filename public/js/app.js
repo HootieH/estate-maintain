@@ -36,6 +36,10 @@ const App = {
     Router.add('/purchaseorders/:id', (p) => PurchaseOrders.detail(p));
     Router.add('/reports', () => Reports.render());
     Router.add('/settings', () => Settings.render());
+    Router.add('/invoices', () => Invoices.list());
+    Router.add('/invoices/new', () => Invoices.form());
+    Router.add('/invoices/:id', (p) => Invoices.detail(p));
+    Router.add('/integrations', () => Integrations.render());
     Router.add('/guide', () => Guide.render());
 
     Router.init();
@@ -165,7 +169,7 @@ const App = {
   updateSidebarDiscovery() {
     const visited = JSON.parse(localStorage.getItem('visited_sections') || '[]');
     const allSections = ['dashboard','workorders','requests','properties','assets','preventive',
-                         'procedures','parts','vendors','purchaseorders','messages','teams','reports','settings'];
+                         'procedures','parts','vendors','purchaseorders','invoices','messages','teams','reports','settings','integrations'];
 
     document.querySelectorAll('.nav-item').forEach(item => {
       const route = item.dataset.route;
@@ -230,6 +234,18 @@ const App = {
         title: 'Purchase Orders',
         text: 'Formalize your procurement process. Draft orders, route for approval, and when you receive goods, inventory updates automatically.',
         color: '#14B8A6'
+      },
+      invoices: {
+        icon: 'receipt',
+        title: 'Invoices',
+        text: 'Track vendor invoices, match them to purchase orders with 3-way matching, and send approved invoices to Bill.com for payment. The bridge between receiving goods and paying vendors.',
+        color: '#8B5CF6'
+      },
+      integrations: {
+        icon: 'plug-zap',
+        title: 'Integrations',
+        text: 'Connect to Bill.com for vendor payments and QuickBooks for accounting. Configure credentials, sync GL accounts, and monitor sync activity.',
+        color: '#10B981'
       },
       procedures: {
         icon: 'clipboard-check',

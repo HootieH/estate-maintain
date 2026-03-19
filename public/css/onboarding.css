@@ -2106,3 +2106,126 @@ h1 .tip-badge-icon {
   width: 14px;
   height: 14px;
 }
+
+/* ============================================
+   Invoice 3-Way Match
+   ============================================ */
+
+.match-grid {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.match-item {
+  text-align: center;
+  padding: 12px 24px;
+  background: var(--bg);
+  border-radius: 10px;
+}
+
+.match-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.match-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.match-arrow {
+  color: var(--text-light);
+}
+
+.match-arrow svg {
+  width: 20px;
+  height: 20px;
+}
+
+.match-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.match-ok {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.match-warn {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.match-result svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ============================================
+   Integration Cards
+   ============================================ */
+
+.integration-card {
+  border: 1px solid var(--border);
+  transition: border-color 0.2s;
+}
+
+.integration-card:hover {
+  border-color: var(--primary-lighter);
+}
+
+/* ============================================
+   Filter Chips
+   ============================================ */
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--card-bg);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.filter-chip:hover {
+  border-color: var(--primary-light);
+  color: var(--primary);
+}
+
+.filter-chip.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+/* ============================================
+   Invoice Line Item Form
+   ============================================ */
+
+.inv-line-item {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.inv-line-item:last-child {
+  border-bottom: none;
+}

@@ -208,9 +208,16 @@ const PurchaseOrders = {
             </button>
             <h1>${po.po_number}</h1>
             ${this.statusBadge(po.status)}
+            ${po.invoice_status ? `<span class="badge" style="background:#8B5CF615;color:#8B5CF6">${po.invoice_status}</span>` : ''}
+            ${po.payment_status ? `<span class="badge" style="background:${po.payment_status === 'paid' ? '#10B981' : '#F59E0B'}15;color:${po.payment_status === 'paid' ? '#10B981' : '#F59E0B'}">${po.payment_status.replace(/_/g, ' ')}</span>` : ''}
           </div>
           <div class="page-header-actions">
             ${actionButtons}
+            ${po.status === 'received' ? `
+              <button class="btn btn-primary" onclick="Router.navigate('#/invoices/new?po_id=${params.id}')">
+                <i data-lucide="receipt"></i> Create Invoice
+              </button>
+            ` : ''}
           </div>
         </div>
 

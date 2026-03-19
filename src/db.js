@@ -392,6 +392,76 @@ db.exec(`
     sidebar_collapsed INTEGER DEFAULT 0,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS gl_accounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    account_number TEXT,
+    qbo_account_id TEXT,
+    account_type TEXT DEFAULT 'expense' CHECK(account_type IN ('expense','cogs','asset','liability')),
+    category TEXT,
+    is_default INTEGER DEFAULT 0,
+    is_active INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS invoices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    invoice_number TEXT,
+    purchase_order_id INTEGER REFERENCES purchase_orders(id),
+    vendor_id INTEGER NOT NULL REFERENCES vendors(id),
+    invoice_date TEXT,
+    due_date TEXT,
+    subtotal REAL DEFAULT 0,
+    tax_amount REAL DEFAULT 0,
+    total_amount REAL DEFAULT 0,
+    status TEXT DEFAULT 'draft' CHECK(status IN ('draft','matched','approved','sent_to_billcom','processing','paid','void')),
+    matched_discrepancy REAL,
+    notes TEXT,
+    billcom_bill_id TEXT,
+    qbo_bill_id TEXT,
+    approved_by INTEGER REFERENCES users(id),
+    approved_at DATETIME,
+    paid_at DATETIME,
+    created_by INTEGER REFERENCES users(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS invoice_line_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    invoice_id INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+    purchase_order_item_id INTEGER REFERENCES purchase_order_items(id),
+    description TEXT NOT NULL,
+    quantity REAL NOT NULL DEFAULT 1,
+    unit_cost REAL NOT NULL DEFAULT 0,
+    amount REAL NOT NULL DEFAULT 0,
+    gl_account_id INTEGER REFERENCES gl_accounts(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS integration_configs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider TEXT NOT NULL CHECK(provider IN ('billcom','quickbooks')),
+    config_key TEXT NOT NULL,
+    config_value TEXT,
+    is_secret INTEGER DEFAULT 0,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(provider, config_key)
+  );
+
+  CREATE TABLE IF NOT EXISTS sync_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id INTEGER,
+    external_id TEXT,
+    direction TEXT CHECK(direction IN ('push','pull')),
+    status TEXT CHECK(status IN ('success','error','pending')),
+    details TEXT,
+    error_message TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 // Migrations for existing databases
@@ -469,6 +539,26 @@ try {
   db.prepare("SELECT last_login_at FROM users LIMIT 1").get();
 } catch (e) {
   db.exec("ALTER TABLE users ADD COLUMN last_login_at DATETIME");
+}
+
+try {
+  db.prepare("SELECT billcom_vendor_id FROM vendors LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE vendors ADD COLUMN billcom_vendor_id TEXT");
+  db.exec("ALTER TABLE vendors ADD COLUMN qbo_vendor_id TEXT");
+}
+
+try {
+  db.prepare("SELECT invoice_status FROM purchase_orders LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE purchase_orders ADD COLUMN invoice_status TEXT");
+  db.exec("ALTER TABLE purchase_orders ADD COLUMN payment_status TEXT");
+}
+
+try {
+  db.prepare("SELECT qbo_class_id FROM properties LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE properties ADD COLUMN qbo_class_id TEXT");
 }
 
 function logActivity(entityType, entityId, action, details, userId) {

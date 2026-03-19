@@ -33,6 +33,8 @@ const templateRoutes = require('./src/routes/templates');
 const searchRoutes = require('./src/routes/search');
 const exportRoutes = require('./src/routes/export');
 const settingsApiRoutes = require('./src/routes/settings-api');
+const invoiceRoutes = require('./src/routes/invoices');
+const integrationRoutes = require('./src/routes/integrations');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -69,6 +71,8 @@ app.use('/api/templates', templateRoutes);
 app.use('/api/search', authenticate, searchRoutes);
 app.use('/api/export', authenticate, exportRoutes);
 app.use('/api/settings-api', settingsApiRoutes);
+app.use('/api/invoices', invoiceRoutes);
+app.use('/api/integrations', integrationRoutes);
 
 // Serve public request page before SPA fallback
 app.get('/request', (req, res) => {
@@ -170,6 +174,22 @@ cron.schedule('5 0 * * *', () => {
     }
   } catch (err) {
     console.error('[CRON] Recurring schedule check failed:', err.message);
+  }
+});
+
+// Poll Bill.com payment statuses every 4 hours
+cron.schedule('0 */4 * * *', async () => {
+  try {
+    const SyncService = require('./src/services/sync');
+    const BillcomService = require('./src/services/billcom');
+    if (!BillcomService.isConnected()) return;
+
+    const results = await SyncService.pollPaymentStatuses();
+    if (results.length > 0) {
+      console.log(`[CRON] Polled ${results.length} invoice payment statuses from Bill.com`);
+    }
+  } catch (err) {
+    console.error('[CRON] Payment status poll failed:', err.message);
   }
 });
 

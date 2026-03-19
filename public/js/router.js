@@ -82,6 +82,8 @@ const Router = {
       requests: 'Work Requests',
       teams: 'Teams',
       settings: 'Settings',
+      invoices: 'Invoices',
+      integrations: 'Integrations',
       new: 'New'
     };
 
