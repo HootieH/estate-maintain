@@ -128,6 +128,24 @@ router.get('/:id', (req, res) => {
   }
 });
 
+// GET /:id/bids/:bidId - Get a single bid with items
+router.get('/:id/bids/:bidId', (req, res) => {
+  try {
+    const bid = db.prepare(`
+      SELECT b.*, v.name AS vendor_name, v.email AS vendor_email, v.phone AS vendor_phone, v.specialty AS vendor_specialty
+      FROM bids b
+      JOIN vendors v ON b.vendor_id = v.id
+      WHERE b.id = ? AND b.project_id = ?
+    `).get(req.params.bidId, req.params.id);
+    if (!bid) return res.status(404).json({ error: 'Bid not found' });
+
+    bid.items = db.prepare('SELECT * FROM bid_items WHERE bid_id = ? ORDER BY sort_order, category').all(bid.id);
+    res.json(bid);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch bid', details: err.message });
+  }
+});
+
 // POST / - Create project
 router.post('/', requireRole('admin', 'manager'), (req, res) => {
   try {
