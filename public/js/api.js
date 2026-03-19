@@ -13,7 +13,14 @@ const API = {
       this.logout();
       return;
     }
-    const data = await res.json();
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      throw new Error('Invalid response from server');
+    }
     if (!res.ok) throw new Error(data.error || 'Request failed');
     return data;
   },
