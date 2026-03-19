@@ -348,11 +348,27 @@ router.delete('/:id', requireRole('admin', 'manager'), (req, res) => {
       }
       db.prepare('DELETE FROM assets WHERE property_id = ?').run(id);
 
-      // Other direct children
+      // Locations and their children
+      const locIds = db.prepare('SELECT id FROM locations WHERE property_id = ?').all(id).map(r => r.id);
+      if (locIds.length > 0) {
+        const ph = locIds.map(() => '?').join(',');
+        try { db.prepare(`DELETE FROM location_procedures WHERE location_id IN (${ph})`).run(...locIds); } catch(_) {}
+      }
       db.prepare('DELETE FROM locations WHERE property_id = ?').run(id);
+
       db.prepare('DELETE FROM preventive_schedules WHERE property_id = ?').run(id);
       db.prepare('DELETE FROM work_requests WHERE property_id = ?').run(id);
+
+      // Nullify part references in PO items before deleting parts
+      const partIds = db.prepare('SELECT id FROM parts WHERE property_id = ?').all(id).map(r => r.id);
+      if (partIds.length > 0) {
+        const ph = partIds.map(() => '?').join(',');
+        db.prepare(`UPDATE purchase_order_items SET part_id = NULL WHERE part_id IN (${ph})`).run(...partIds);
+        db.prepare(`DELETE FROM entity_tags WHERE entity_type = 'part' AND entity_id IN (${ph})`).run(...partIds);
+        db.prepare(`DELETE FROM favorites WHERE entity_type = 'part' AND entity_id IN (${ph})`).run(...partIds);
+      }
       db.prepare('DELETE FROM parts WHERE property_id = ?').run(id);
+
       db.prepare('DELETE FROM user_property_access WHERE property_id = ?').run(id);
 
       // Nullify references (don't cascade-delete POs/projects/invoices — they have vendor relationships)
@@ -360,7 +376,15 @@ router.delete('/:id', requireRole('admin', 'manager'), (req, res) => {
       db.prepare('UPDATE projects SET property_id = NULL WHERE property_id = ?').run(id);
       db.prepare('UPDATE work_order_templates SET property_id = NULL WHERE property_id = ?').run(id);
 
-      // Clean up tags/favorites/activity for this property
+      // Clean up channels for this property
+      const propChannel = db.prepare("SELECT id FROM channels WHERE channel_type = 'property' AND channel_key = 'prop_' || ?").get(id);
+      if (propChannel) {
+        db.prepare('DELETE FROM pinned_messages WHERE channel_id = ?').run(propChannel.id);
+        db.prepare('DELETE FROM channel_members WHERE channel_id = ?').run(propChannel.id);
+        db.prepare('DELETE FROM channels WHERE id = ?').run(propChannel.id);
+      }
+
+      // Clean up tags/favorites for this property
       db.prepare("DELETE FROM entity_tags WHERE entity_type = 'property' AND entity_id = ?").run(id);
       db.prepare("DELETE FROM favorites WHERE entity_type = 'property' AND entity_id = ?").run(id);
 

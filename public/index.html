@@ -25,6 +25,11 @@
             <i data-lucide="layout-dashboard"></i>
             <span>Dashboard</span>
           </a>
+          <a href="#/messages" class="nav-item" data-route="messages">
+            <i data-lucide="message-circle"></i>
+            <span>Messages</span>
+            <span class="nav-badge" id="messages-unread-badge" style="display:none"></span>
+          </a>
 
           <div class="nav-section" data-section="work">
             <button class="nav-section-header" onclick="App.toggleNavSection('work')">
@@ -107,12 +112,6 @@
               </a>
             </div>
           </div>
-
-          <a href="#/messages" class="nav-item" data-route="messages">
-            <i data-lucide="message-circle"></i>
-            <span>Messages</span>
-            <span class="nav-badge" id="messages-unread-badge" style="display:none"></span>
-          </a>
 
           <div class="nav-section" data-section="admin">
             <button class="nav-section-header" onclick="App.toggleNavSection('admin')">
