@@ -18,7 +18,7 @@ const ReviewQueue = {
       container.innerHTML = `
         <div class="page-header">
           <h1>
-            Review Queue
+            Review Queue <span class="tip-trigger" data-tip="review-queue"><i data-lucide="help-circle" class="tip-badge-icon"></i></span>
             ${pendingCount > 0 ? `<span style="display:inline-flex;align-items:center;justify-content:center;background:var(--primary,#3B82F6);color:#fff;border-radius:999px;font-size:0.875rem;min-width:24px;height:24px;padding:0 8px;margin-left:8px;font-weight:600">${pendingCount}</span>` : ''}
           </h1>
         </div>

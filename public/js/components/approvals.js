@@ -9,7 +9,7 @@ const Approvals = {
 
     container.innerHTML = `
       <div class="page-header">
-        <h1>Approvals</h1>
+        <h1>Approvals <span class="tip-trigger" data-tip="approvals"><i data-lucide="help-circle" class="tip-badge-icon"></i></span></h1>
       </div>
 
       <div class="tabs">

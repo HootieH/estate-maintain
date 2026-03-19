@@ -454,12 +454,21 @@ const Guide = {
           <div class="card-header"><h3>Role Hierarchy</h3></div>
           <div class="card-body">
             <div class="hierarchy-chart">
+              <div class="hier-node" style="border-color:#7C3AED">
+                <div class="hier-icon" style="background:#7C3AED;color:#EDE9FE"><i data-lucide="zap"></i></div>
+                <div class="hier-details">
+                  <strong>God Mode</strong>
+                  <span style="display:inline-flex;align-items:center;padding:2px 10px;border-radius:12px;font-size:0.75rem;font-weight:600;background:#EDE9FE;color:#7C3AED">owner</span>
+                  <p>System-level access. Sees all properties across all estates. Manages the entire platform. Can only be granted via server command line — never through the UI or registration.</p>
+                </div>
+              </div>
+              <div class="hier-line"></div>
               <div class="hier-node hier-admin">
                 <div class="hier-icon" style="background:#991B1B;color:#FEE2E2"><i data-lucide="crown"></i></div>
                 <div class="hier-details">
                   <strong>Administrator</strong>
                   <span class="role-badge role-admin">admin</span>
-                  <p>Full control. Creates the estate, manages all users, configures permissions, approval rules, and integrations. Sees everything.</p>
+                  <p>Creates and manages their own properties. Invites others to their properties with role and access scoping. Cannot see other admins' properties.</p>
                 </div>
               </div>
               <div class="hier-line"></div>
@@ -679,6 +688,7 @@ const Guide = {
               <thead>
                 <tr>
                   <th>Section</th>
+                  <th style="text-align:center"><span style="display:inline-flex;padding:2px 8px;border-radius:12px;font-size:0.7rem;font-weight:600;background:#EDE9FE;color:#7C3AED">God</span></th>
                   <th style="text-align:center"><span class="role-badge role-admin">Admin</span></th>
                   <th style="text-align:center"><span class="role-badge role-manager">Manager</span></th>
                   <th style="text-align:center"><span class="role-badge role-technician">Technician</span></th>
@@ -686,30 +696,32 @@ const Guide = {
               </thead>
               <tbody>
                 ${[
-                  ['Dashboard', true, true, true],
-                  ['Work Orders', true, true, true],
-                  ['Review Queue', true, true, false],
-                  ['Work Requests', true, true, true],
-                  ['Approvals', true, true, false],
-                  ['Properties', true, true, true],
-                  ['Assets', true, true, true],
-                  ['Preventive Maintenance', true, true, true],
-                  ['Procedures', true, true, true],
-                  ['Parts & Inventory', true, true, true],
-                  ['Vendors', true, true, false],
-                  ['Purchase Orders', true, true, false],
-                  ['Invoices', true, true, false],
-                  ['Projects & Bids', true, true, false],
-                  ['Messages', true, true, true],
-                  ['User Management', true, false, false],
-                  ['Teams', true, true, true],
-                  ['Audit Log', true, false, false],
-                  ['Reports', true, true, false],
-                  ['Settings', true, true, false],
-                  ['Integrations', true, false, false],
-                ].map(([section, admin, manager, tech]) => `
+                  ['Dashboard', true, true, true, true],
+                  ['Work Orders', true, true, true, true],
+                  ['Review Queue', true, true, true, false],
+                  ['Work Requests', true, true, true, true],
+                  ['Approvals', true, true, true, false],
+                  ['Properties', true, true, true, true],
+                  ['Assets', true, true, true, true],
+                  ['Preventive Maintenance', true, true, true, true],
+                  ['Procedures', true, true, true, true],
+                  ['Parts & Inventory', true, true, true, true],
+                  ['Vendors', true, true, true, false],
+                  ['Purchase Orders', true, true, true, false],
+                  ['Invoices', true, true, true, false],
+                  ['Projects & Bids', true, true, true, false],
+                  ['Messages', true, true, true, true],
+                  ['User Management', true, true, false, false],
+                  ['Teams', true, true, true, true],
+                  ['Audit Log', true, true, false, false],
+                  ['Reports', true, true, true, false],
+                  ['Settings', true, true, true, false],
+                  ['Integrations', true, true, false, false],
+                  ['All Properties (cross-estate)', true, false, false, false],
+                ].map(([section, god, admin, manager, tech]) => `
                   <tr>
                     <td>${section}</td>
+                    <td style="text-align:center">${god ? '<i data-lucide="check" style="width:16px;height:16px;color:#7C3AED"></i>' : '<i data-lucide="minus" style="width:16px;height:16px;color:var(--border)"></i>'}</td>
                     <td style="text-align:center">${admin ? '<i data-lucide="check" style="width:16px;height:16px;color:#22C55E"></i>' : '<i data-lucide="minus" style="width:16px;height:16px;color:var(--border)"></i>'}</td>
                     <td style="text-align:center">${manager ? '<i data-lucide="check" style="width:16px;height:16px;color:#22C55E"></i>' : '<i data-lucide="minus" style="width:16px;height:16px;color:var(--border)"></i>'}</td>
                     <td style="text-align:center">${tech ? '<i data-lucide="check" style="width:16px;height:16px;color:#22C55E"></i>' : '<i data-lucide="minus" style="width:16px;height:16px;color:var(--border)"></i>'}</td>

@@ -210,6 +210,18 @@ const App = {
         text: 'The core of your maintenance operation. Every task lives here — whether created manually, generated from a preventive maintenance schedule, built from a template, or approved from a work request. Track assignments, priorities, parts used, time logged, and procedures.',
         color: '#3B82F6'
       },
+      reviews: {
+        icon: 'check-square',
+        title: 'Review Queue',
+        text: 'Completed work orders land here for quality review. After a technician marks a job done, a manager verifies the work before final sign-off. This is your QA checkpoint — catch issues before closing the loop.',
+        color: '#8B5CF6'
+      },
+      approvals: {
+        icon: 'shield-check',
+        title: 'Approvals',
+        text: 'Items waiting for formal authorization — purchase orders above a threshold, invoices ready for payment, high-value work. This is the financial checkpoint that ensures spending is reviewed before money goes out the door.',
+        color: '#F59E0B'
+      },
       properties: {
         icon: 'building-2',
         title: 'Your Properties',
