@@ -1306,6 +1306,68 @@ textarea.form-control {
   border-bottom-color: var(--primary);
 }
 
+/* Passkey login */
+.passkey-login-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 12px;
+  font-size: 0.95rem;
+}
+
+.login-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 20px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid var(--border);
+}
+
+.login-divider span {
+  padding: 0 12px;
+}
+
+/* Passkey settings */
+.passkey-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.passkey-item:last-child {
+  border-bottom: none;
+}
+
+.passkey-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.passkey-info svg {
+  width: 20px;
+  height: 20px;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.passkey-actions {
+  display: flex;
+  gap: 6px;
+}
+
 /* ============================================
    Settings
    ============================================ */

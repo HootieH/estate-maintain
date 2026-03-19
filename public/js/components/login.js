@@ -1,14 +1,21 @@
 const Login = {
   render() {
     const view = document.getElementById('login-view');
+    const passkeySupported = window.PublicKeyCredential !== undefined;
     view.innerHTML = `
       <div class="login-container">
         <div class="login-card">
           <div class="login-brand">
             <i data-lucide="home" class="login-brand-icon"></i>
-            <h1>Estate Maintain</h1>
+            <h1>Estatecraft</h1>
             <p>Private estate portfolio management</p>
           </div>
+          ${passkeySupported ? `
+          <button class="btn btn-secondary btn-block passkey-login-btn" id="passkey-login-btn" onclick="Login.handlePasskeyLogin()">
+            <i data-lucide="fingerprint"></i> Sign in with Passkey
+          </button>
+          <div class="login-divider"><span>or</span></div>
+          ` : ''}
           <div class="login-tabs">
             <button class="login-tab active" data-tab="login" onclick="Login.switchTab('login')">Sign In</button>
             <button class="login-tab" data-tab="register" onclick="Login.switchTab('register')">Register</button>
@@ -107,6 +114,41 @@ const Login = {
     } finally {
       btn.disabled = false;
       btn.textContent = 'Create Account';
+    }
+  },
+
+  async handlePasskeyLogin() {
+    const btn = document.getElementById('passkey-login-btn');
+    const errorEl = document.getElementById('login-error');
+    errorEl.style.display = 'none';
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader"></i> Waiting for passkey...';
+    lucide.createIcons();
+
+    try {
+      // Get authentication options from server
+      const options = await API.post('/passkeys/login-options', {});
+
+      // Prompt user's authenticator
+      const credential = await SimpleWebAuthnBrowser.startAuthentication({ optionsJSON: options });
+
+      // Verify with server — pass challenge back so server can look it up
+      const data = await API.post('/passkeys/login-verify', { credential, challenge: options.challenge });
+
+      API.setToken(data.token);
+      API.setUser(data.user);
+      App.showMain();
+    } catch (err) {
+      if (err.name === 'NotAllowedError') {
+        // User cancelled the passkey prompt
+      } else {
+        errorEl.textContent = err.message || 'Passkey authentication failed';
+        errorEl.style.display = 'block';
+      }
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="fingerprint"></i> Sign in with Passkey';
+      lucide.createIcons();
     }
   }
 };

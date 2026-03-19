@@ -81,6 +81,21 @@ const Settings = {
             </div>
           </div>
 
+          ${window.PublicKeyCredential ? `
+          <div class="card">
+            <div class="card-header">
+              <h3>Passkeys</h3>
+              <button class="btn btn-sm btn-primary" onclick="Settings.registerPasskey()">
+                <i data-lucide="plus"></i> Add Passkey
+              </button>
+            </div>
+            <div class="card-body">
+              <p class="text-muted" style="margin-bottom: 12px">Sign in with biometrics or your device instead of a password.</p>
+              <div id="passkey-list"><div class="loading"><div class="spinner"></div></div></div>
+            </div>
+          </div>
+          ` : ''}
+
           <div class="card">
             <div class="card-header"><h3>Account</h3></div>
             <div class="card-body">
@@ -95,6 +110,7 @@ const Settings = {
         </div>
       `;
       lucide.createIcons();
+      if (window.PublicKeyCredential) Settings.loadPasskeys();
     } catch (e) {
       container.innerHTML = `<div class="error-state"><p>${e.message}</p></div>`;
     }
@@ -147,6 +163,79 @@ const Settings = {
     } finally {
       btn.disabled = false;
       btn.textContent = 'Save Profile';
+    }
+  },
+
+  async loadPasskeys() {
+    const list = document.getElementById('passkey-list');
+    if (!list) return;
+    try {
+      const passkeys = await API.get('/passkeys');
+      if (passkeys.length === 0) {
+        list.innerHTML = '<p class="text-muted">No passkeys registered yet.</p>';
+      } else {
+        list.innerHTML = passkeys.map(pk => `
+          <div class="passkey-item">
+            <div class="passkey-info">
+              <i data-lucide="fingerprint"></i>
+              <div>
+                <strong>${pk.name}</strong>
+                <div class="text-muted text-sm">
+                  Added ${new Date(pk.created_at).toLocaleDateString()}
+                  ${pk.last_used_at ? ' &middot; Last used ' + new Date(pk.last_used_at).toLocaleDateString() : ''}
+                  ${pk.backed_up ? ' &middot; Synced' : ''}
+                </div>
+              </div>
+            </div>
+            <div class="passkey-actions">
+              <button class="btn btn-sm btn-secondary" onclick="Settings.renamePasskey(${pk.id}, '${pk.name.replace(/'/g, "\\'")}')">Rename</button>
+              <button class="btn btn-sm btn-danger" onclick="Settings.removePasskey(${pk.id})">Remove</button>
+            </div>
+          </div>
+        `).join('');
+      }
+      lucide.createIcons();
+    } catch (err) {
+      list.innerHTML = `<p class="text-muted">Failed to load passkeys.</p>`;
+    }
+  },
+
+  async registerPasskey() {
+    try {
+      const options = await API.post('/passkeys/register-options', {});
+      const credential = await SimpleWebAuthnBrowser.startRegistration({ optionsJSON: options });
+
+      const name = prompt('Name this passkey (e.g. "MacBook Touch ID", "iPhone"):', 'Passkey');
+      if (name === null) return;
+
+      await API.post('/passkeys/register-verify', { credential, name: name || 'Passkey' });
+      App.toast('Passkey registered', 'success');
+      Settings.loadPasskeys();
+    } catch (err) {
+      if (err.name === 'NotAllowedError') return;
+      App.toast(err.message || 'Failed to register passkey', 'error');
+    }
+  },
+
+  async removePasskey(id) {
+    if (!confirm('Remove this passkey? You can always add it again later.')) return;
+    try {
+      await API.delete(`/passkeys/${id}`);
+      App.toast('Passkey removed', 'success');
+      Settings.loadPasskeys();
+    } catch (err) {
+      App.toast(err.message, 'error');
+    }
+  },
+
+  async renamePasskey(id, currentName) {
+    const name = prompt('Rename passkey:', currentName);
+    if (!name || name === currentName) return;
+    try {
+      await API.put(`/passkeys/${id}`, { name });
+      Settings.loadPasskeys();
+    } catch (err) {
+      App.toast(err.message, 'error');
     }
   },
 
