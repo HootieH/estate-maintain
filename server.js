@@ -35,6 +35,7 @@ const exportRoutes = require('./src/routes/export');
 const settingsApiRoutes = require('./src/routes/settings-api');
 const invoiceRoutes = require('./src/routes/invoices');
 const integrationRoutes = require('./src/routes/integrations');
+const projectRoutes = require('./src/routes/projects');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -73,6 +74,7 @@ app.use('/api/export', authenticate, exportRoutes);
 app.use('/api/settings-api', settingsApiRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/integrations', integrationRoutes);
+app.use('/api/projects', projectRoutes);
 
 // Serve public request page before SPA fallback
 app.get('/request', (req, res) => {

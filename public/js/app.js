@@ -40,6 +40,9 @@ const App = {
     Router.add('/invoices/new', () => Invoices.form());
     Router.add('/invoices/:id', (p) => Invoices.detail(p));
     Router.add('/integrations', () => Integrations.render());
+    Router.add('/projects', () => Projects.list());
+    Router.add('/projects/new', () => Projects.form());
+    Router.add('/projects/:id', (p) => Projects.detail(p));
     Router.add('/guide', () => Guide.render());
 
     Router.init();
@@ -169,7 +172,7 @@ const App = {
   updateSidebarDiscovery() {
     const visited = JSON.parse(localStorage.getItem('visited_sections') || '[]');
     const allSections = ['dashboard','workorders','requests','properties','assets','preventive',
-                         'procedures','parts','vendors','purchaseorders','invoices','messages','teams','reports','settings','integrations'];
+                         'procedures','parts','vendors','purchaseorders','invoices','projects','messages','teams','reports','settings','integrations'];
 
     document.querySelectorAll('.nav-item').forEach(item => {
       const route = item.dataset.route;
@@ -240,6 +243,12 @@ const App = {
         title: 'Invoices',
         text: 'Track vendor invoices, match them to purchase orders with 3-way matching, and send approved invoices to Bill.com for payment. The bridge between receiving goods and paying vendors.',
         color: '#8B5CF6'
+      },
+      projects: {
+        icon: 'briefcase',
+        title: 'Projects & Competitive Bidding',
+        text: 'Define a scope of work, collect bids from multiple vendors, level them side by side with category breakdowns, and award the winner. Awarding auto-creates a Purchase Order that flows through your normal procurement pipeline.',
+        color: '#6366F1'
       },
       integrations: {
         icon: 'plug-zap',

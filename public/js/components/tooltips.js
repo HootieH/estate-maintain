@@ -50,6 +50,11 @@ const Tooltips = {
       text: 'A formal order to a vendor for parts or services. POs follow a workflow: Draft → Submit → Approve → Receive. Receiving auto-updates your parts inventory.',
       connections: 'Links Vendors to Parts inventory'
     },
+    'project': {
+      title: 'Projects & Competitive Bidding',
+      text: 'For larger jobs, define a scope of work and collect competitive bids from multiple vendors. Compare bids side by side with category-level leveling (materials, labor, equipment, etc.). Award the winning bid to auto-create a Purchase Order.',
+      connections: 'Creates Purchase Orders, links to Vendors and Properties'
+    },
     'meter': {
       title: 'Meter',
       text: 'Tracks usage on an asset — hours, miles, cycles, kWh. Set triggers to auto-create maintenance work orders when usage thresholds are reached.',

@@ -275,6 +275,19 @@ const Guide = {
           { icon: 'calendar-clock', text: 'Set up <strong>PM Schedules</strong> for recurring maintenance', link: '#/preventive/new' },
           { icon: 'package', text: 'Stock <strong>Parts</strong> that you\'ll need for this property', link: '#/parts/new' }
         ]
+      },
+      {
+        title: 'Getting competitive bids on a project',
+        icon: 'briefcase',
+        color: '#6366F1',
+        steps: [
+          { icon: 'file-text', text: 'Create a <strong>Project</strong> with a detailed scope of work, budget range, and deadline', link: '#/projects/new' },
+          { icon: 'users', text: 'Invite bids from multiple <strong>Vendors</strong> — enter each bid with line item breakdowns by category (materials, labor, equipment, permits, overhead)' },
+          { icon: 'columns-3', text: 'Use <strong>Bid Leveling</strong> to compare all bids side by side — see which vendor is cheapest per category and overall' },
+          { icon: 'eye', text: 'Review terms: <strong>warranty, payment terms, timeline, inclusions, and exclusions</strong> — the cheapest bid isn\'t always the best' },
+          { icon: 'trophy', text: '<strong>Award</strong> the winning bid — this auto-creates a <strong>Purchase Order</strong> with the bid line items' },
+          { icon: 'shopping-cart', text: 'The PO flows through your normal procurement pipeline: <strong>Submit → Approve → Receive → Invoice → Payment</strong>', link: '#/purchaseorders' }
+        ]
       }
     ];
 
@@ -367,6 +380,10 @@ const Guide = {
         when: 'Ordering parts or services',
         what: 'Formal procurement: Draft → Submit → Approve → Receive. Receiving auto-updates parts inventory.',
         creates: 'Restocks: Parts inventory' },
+      { icon: 'briefcase', name: 'Projects & Bids', color: '#6366F1', route: '#/projects',
+        when: 'Soliciting competitive bids from vendors',
+        what: 'Define scope of work, collect vendor bids with category breakdowns, level them side by side, and award the winner. Award auto-creates a Purchase Order.',
+        creates: 'Creates: Purchase Orders. Links to: Vendors, Properties' },
       { icon: 'users', name: 'Teams', color: '#6366F1', route: '#/teams',
         when: 'Organizing staff by specialty',
         what: 'Group technicians by skill — grounds, interior, security. Assign properties and work orders to teams.',

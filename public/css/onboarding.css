@@ -2229,3 +2229,148 @@ h1 .tip-badge-icon {
 .inv-line-item:last-child {
   border-bottom: none;
 }
+
+/* ============================================
+   Bid Cards
+   ============================================ */
+
+.bid-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.bid-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--card-bg);
+  transition: all 0.15s;
+}
+
+.bid-card:hover {
+  border-color: var(--primary-lighter);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.bid-card-selected {
+  border-color: var(--success);
+  background: var(--success-bg);
+}
+
+.bid-card-rejected {
+  opacity: 0.5;
+}
+
+.bid-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.bid-card-header strong {
+  font-size: 15px;
+  color: var(--text);
+}
+
+.bid-card-amount {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.bid-amount {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.bid-lowest {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--success);
+  background: var(--success-bg);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.bid-card-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.bid-card-details span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bid-card-breakdown {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.bid-cat-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  padding: 3px 0;
+  color: var(--text-muted);
+}
+
+.bid-cat-row span:last-child {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.bid-terms {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 4px 0;
+  line-height: 1.4;
+}
+
+.bid-terms strong {
+  color: var(--text);
+}
+
+.bid-terms-warn {
+  color: var(--warning);
+}
+
+.bid-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+/* ============================================
+   Comparison Table
+   ============================================ */
+
+.compare-table th {
+  white-space: nowrap;
+}
+
+.compare-table td {
+  white-space: nowrap;
+}
+
+.bid-item-row {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.bid-item-row:last-child {
+  border-bottom: none;
+}

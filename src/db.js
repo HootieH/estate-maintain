@@ -462,6 +462,58 @@ db.exec(`
     error_message TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS projects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT,
+    scope_of_work TEXT,
+    property_id INTEGER REFERENCES properties(id),
+    category TEXT,
+    budget_min REAL,
+    budget_max REAL,
+    deadline TEXT,
+    status TEXT DEFAULT 'draft' CHECK(status IN ('draft','bidding','evaluating','awarded','in_progress','completed','cancelled')),
+    awarded_bid_id INTEGER,
+    purchase_order_id INTEGER REFERENCES purchase_orders(id),
+    notes TEXT,
+    created_by INTEGER REFERENCES users(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS bids (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    vendor_id INTEGER NOT NULL REFERENCES vendors(id),
+    status TEXT DEFAULT 'draft' CHECK(status IN ('draft','submitted','under_review','selected','rejected','withdrawn')),
+    total_amount REAL NOT NULL DEFAULT 0,
+    timeline_days INTEGER,
+    start_date TEXT,
+    completion_date TEXT,
+    warranty_terms TEXT,
+    payment_terms TEXT,
+    inclusions TEXT,
+    exclusions TEXT,
+    notes TEXT,
+    score REAL,
+    submitted_at DATETIME,
+    created_by INTEGER REFERENCES users(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS bid_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bid_id INTEGER NOT NULL REFERENCES bids(id) ON DELETE CASCADE,
+    category TEXT NOT NULL CHECK(category IN ('materials','labor','equipment','permits','subcontractors','overhead','other')),
+    description TEXT NOT NULL,
+    quantity REAL DEFAULT 1,
+    unit TEXT,
+    unit_cost REAL DEFAULT 0,
+    amount REAL DEFAULT 0,
+    notes TEXT,
+    sort_order INTEGER DEFAULT 0
+  );
 `);
 
 // Migrations for existing databases
