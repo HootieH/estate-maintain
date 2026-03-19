@@ -73,6 +73,15 @@ const Integrations = {
           </div>
           <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Send approved invoices to Bill.com for vendor payment via ACH or check.</p>
           ${!connected ? `
+            <div style="margin-bottom:14px;padding:12px;background:#E8F5E9;border-radius:8px;border-left:3px solid #00C853">
+              <strong style="font-size:12px;color:#00C853;display:block;margin-bottom:6px">How to get your credentials:</strong>
+              <ol style="font-size:12px;color:var(--text-muted);line-height:1.6;padding-left:16px;margin:0">
+                <li>Go to <a href="https://developer.bill.com" target="_blank" style="color:#00C853">developer.bill.com</a> and sign in</li>
+                <li>Create an app under <strong>My Apps</strong></li>
+                <li>Copy the <strong>Client ID</strong> and <strong>Client Secret</strong></li>
+                <li>Add the Redirect URI below to your app's settings</li>
+              </ol>
+            </div>
             <div style="margin-bottom:12px">
               <div class="form-group" style="margin-bottom:8px">
                 <label style="font-size:12px">Client ID</label>
@@ -119,6 +128,15 @@ const Integrations = {
           </div>
           <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Sync GL accounts for expense categorization. Bill.com handles the accounting sync.</p>
           ${!connected ? `
+            <div style="margin-bottom:14px;padding:12px;background:#E8F5E9;border-radius:8px;border-left:3px solid #2CA01C">
+              <strong style="font-size:12px;color:#2CA01C;display:block;margin-bottom:6px">How to get your credentials:</strong>
+              <ol style="font-size:12px;color:var(--text-muted);line-height:1.6;padding-left:16px;margin:0">
+                <li>Go to <a href="https://developer.intuit.com/app/developer/dashboard" target="_blank" style="color:#2CA01C">Intuit Developer Dashboard</a> and sign in</li>
+                <li>Create an app (select <strong>QuickBooks Online and Payments</strong>)</li>
+                <li>Under <strong>Keys & credentials</strong>, copy the <strong>Client ID</strong> and <strong>Client Secret</strong></li>
+                <li>Add the Redirect URI below to <strong>Redirect URIs</strong> in your app settings</li>
+              </ol>
+            </div>
             <div style="margin-bottom:12px">
               <div class="form-group" style="margin-bottom:8px">
                 <label style="font-size:12px">Client ID</label>
@@ -168,18 +186,30 @@ const Integrations = {
           </div>
           <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Store photos, PDFs, and documents organized by property and entity. Files live in Google Drive — accessible anywhere.</p>
           ${!connected ? `
+            <div style="margin-bottom:14px;padding:12px;background:var(--primary-lighter, #EFF6FF);border-radius:8px;border-left:3px solid var(--primary-light)">
+              <strong style="font-size:12px;color:var(--primary);display:block;margin-bottom:6px">How to get your credentials:</strong>
+              <ol style="font-size:12px;color:var(--text-muted);line-height:1.6;padding-left:16px;margin:0">
+                <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:var(--primary)">Google Cloud Console → Credentials</a></li>
+                <li>Create a project (or select an existing one)</li>
+                <li>Click <strong>+ Create Credentials → OAuth client ID</strong></li>
+                <li>Application type: <strong>Web application</strong></li>
+                <li>Add the Redirect URI shown below to <strong>Authorized redirect URIs</strong></li>
+                <li>Copy the <strong>Client ID</strong> and <strong>Client Secret</strong> into the fields below</li>
+                <li>Also enable the <strong>Google Drive API</strong> under <a href="https://console.cloud.google.com/apis/library/drive.googleapis.com" target="_blank" style="color:var(--primary)">APIs & Services → Library</a></li>
+              </ol>
+            </div>
             <div style="margin-bottom:12px">
               <div class="form-group" style="margin-bottom:8px">
                 <label style="font-size:12px">Client ID</label>
-                <input type="text" id="gdrive-client-id" class="form-control" placeholder="Google Cloud OAuth Client ID">
+                <input type="text" id="gdrive-client-id" class="form-control" placeholder="e.g., 123456789-abc.apps.googleusercontent.com">
               </div>
               <div class="form-group" style="margin-bottom:8px">
                 <label style="font-size:12px">Client Secret</label>
-                <input type="password" id="gdrive-client-secret" class="form-control" placeholder="Client Secret">
+                <input type="password" id="gdrive-client-secret" class="form-control" placeholder="e.g., GOCSPX-...">
               </div>
               <div class="form-group" style="margin-bottom:8px">
-                <label style="font-size:12px">Redirect URI</label>
-                <input type="text" id="gdrive-redirect-uri" class="form-control" value="${window.location.origin}/api/integrations/google-drive/callback">
+                <label style="font-size:12px">Redirect URI <span style="color:var(--text-light);font-weight:400">(add this to Google Cloud Console)</span></label>
+                <input type="text" id="gdrive-redirect-uri" class="form-control" value="${window.location.origin}/api/integrations/google-drive/callback" readonly style="background:var(--bg);cursor:text" onclick="this.select()">
               </div>
               <div class="form-group" style="margin-bottom:12px">
                 <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">

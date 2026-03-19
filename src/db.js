@@ -1063,6 +1063,13 @@ try {
   db.exec("ALTER TABLE procedure_steps ADD COLUMN max_value REAL");
 }
 
+// PM estimated_hours column
+try {
+  db.prepare("SELECT estimated_hours FROM preventive_schedules LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE preventive_schedules ADD COLUMN estimated_hours REAL");
+}
+
 // Procedure response improvements: notes for fail-with-reason
 try {
   db.prepare("SELECT notes FROM procedure_responses LIMIT 1").get();

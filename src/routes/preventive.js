@@ -25,12 +25,14 @@ function calculateNextDue(frequency, fromDate) {
 router.get('/', (req, res) => {
   try {
     let sql = `
-      SELECT ps.*, p.name AS property_name, a.name AS asset_name, t.name AS team_name, pr.title AS procedure_title
+      SELECT ps.*, p.name AS property_name, a.name AS asset_name, t.name AS team_name,
+        pr.title AS procedure_title, u.name AS assigned_to_name
       FROM preventive_schedules ps
       LEFT JOIN properties p ON ps.property_id = p.id
       LEFT JOIN assets a ON ps.asset_id = a.id
       LEFT JOIN teams t ON ps.assigned_team_id = t.id
       LEFT JOIN procedures pr ON ps.procedure_id = pr.id
+      LEFT JOIN users u ON ps.assigned_to = u.id
     `;
     const conditions = [];
     const params = [];
@@ -52,6 +54,30 @@ router.get('/', (req, res) => {
     if (req.query.is_active !== undefined) {
       conditions.push('ps.is_active = ?');
       params.push(req.query.is_active);
+    }
+
+    // Additional filters
+    if (req.query.search) {
+      conditions.push('(ps.title LIKE ? OR ps.description LIKE ?)');
+      const searchTerm = `%${req.query.search}%`;
+      params.push(searchTerm, searchTerm);
+    }
+    if (req.query.frequency) {
+      conditions.push('ps.frequency = ?');
+      params.push(req.query.frequency);
+    }
+    if (req.query.status) {
+      switch (req.query.status) {
+        case 'active':
+          conditions.push('ps.is_active = 1');
+          break;
+        case 'inactive':
+          conditions.push('ps.is_active = 0');
+          break;
+        case 'overdue':
+          conditions.push("ps.is_active = 1 AND ps.next_due < date('now')");
+          break;
+      }
     }
 
     if (conditions.length > 0) {
@@ -87,12 +113,14 @@ router.get('/', (req, res) => {
 router.get('/:id', (req, res) => {
   try {
     const schedule = db.prepare(`
-      SELECT ps.*, p.name AS property_name, a.name AS asset_name, t.name AS team_name, pr.title AS procedure_title
+      SELECT ps.*, p.name AS property_name, a.name AS asset_name, t.name AS team_name,
+        pr.title AS procedure_title, u.name AS assigned_to_name
       FROM preventive_schedules ps
       LEFT JOIN properties p ON ps.property_id = p.id
       LEFT JOIN assets a ON ps.asset_id = a.id
       LEFT JOIN teams t ON ps.assigned_team_id = t.id
       LEFT JOIN procedures pr ON ps.procedure_id = pr.id
+      LEFT JOIN users u ON ps.assigned_to = u.id
       WHERE ps.id = ?
     `).get(req.params.id);
 
@@ -102,11 +130,13 @@ router.get('/:id', (req, res) => {
 
     // Fetch completion history from linked work orders
     const history = db.prepare(`
-      SELECT id, title, status, completed_at, assigned_to, signed_off_by
-      FROM work_orders
-      WHERE preventive_schedule_id = ?
-      ORDER BY created_at DESC
-      LIMIT 20
+      SELECT wo.id, wo.title, wo.status, wo.created_at, wo.completed_at, wo.due_date,
+        u.name AS assigned_user_name, su.name AS signed_off_by_name
+      FROM work_orders wo
+      LEFT JOIN users u ON wo.assigned_to = u.id
+      LEFT JOIN users su ON wo.signed_off_by = su.id
+      WHERE wo.preventive_schedule_id = ?
+      ORDER BY wo.created_at DESC LIMIT 20
     `).all(req.params.id);
 
     res.json({ ...schedule, history });
@@ -118,7 +148,7 @@ router.get('/:id', (req, res) => {
 // POST /
 router.post('/', requireRole('admin', 'manager'), (req, res) => {
   try {
-    const { title, description, property_id, asset_id, assigned_team_id, assigned_to, frequency, next_due, category, priority, is_active, procedure_id, estimated_cost } = req.body;
+    const { title, description, property_id, asset_id, assigned_team_id, assigned_to, frequency, next_due, category, priority, is_active, procedure_id, estimated_cost, estimated_hours } = req.body;
 
     if (!title || !property_id || !frequency) {
       return res.status(400).json({ error: 'Title, property_id, and frequency are required' });
@@ -127,15 +157,15 @@ router.post('/', requireRole('admin', 'manager'), (req, res) => {
     const computedNextDue = next_due || calculateNextDue(frequency);
 
     const result = db.prepare(`
-      INSERT INTO preventive_schedules (title, description, property_id, asset_id, assigned_team_id, assigned_to, frequency, next_due, category, priority, is_active, procedure_id, estimated_cost)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO preventive_schedules (title, description, property_id, asset_id, assigned_team_id, assigned_to, frequency, next_due, category, priority, is_active, procedure_id, estimated_cost, estimated_hours)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       title, description || null, property_id,
       asset_id || null, assigned_team_id || null,
       assigned_to || null,
       frequency, computedNextDue, category || null,
       priority || 'medium', is_active !== undefined ? is_active : 1,
-      procedure_id || null, estimated_cost || null
+      procedure_id || null, estimated_cost || null, estimated_hours || null
     );
 
     const schedule = db.prepare('SELECT * FROM preventive_schedules WHERE id = ?').get(result.lastInsertRowid);
@@ -155,13 +185,13 @@ router.put('/:id', requireRole('admin', 'manager'), (req, res) => {
       return res.status(404).json({ error: 'Preventive schedule not found' });
     }
 
-    const { title, description, property_id, asset_id, assigned_team_id, assigned_to, frequency, next_due, category, priority, is_active, procedure_id, estimated_cost } = req.body;
+    const { title, description, property_id, asset_id, assigned_team_id, assigned_to, frequency, next_due, category, priority, is_active, procedure_id, estimated_cost, estimated_hours } = req.body;
 
     db.prepare(`
       UPDATE preventive_schedules SET
         title = ?, description = ?, property_id = ?, asset_id = ?, assigned_team_id = ?,
         assigned_to = ?, frequency = ?, next_due = ?, category = ?, priority = ?, is_active = ?,
-        procedure_id = ?, estimated_cost = ?
+        procedure_id = ?, estimated_cost = ?, estimated_hours = ?
       WHERE id = ?
     `).run(
       title || existing.title,
@@ -177,6 +207,7 @@ router.put('/:id', requireRole('admin', 'manager'), (req, res) => {
       is_active !== undefined ? is_active : existing.is_active,
       procedure_id !== undefined ? procedure_id : existing.procedure_id,
       estimated_cost !== undefined ? estimated_cost : existing.estimated_cost,
+      estimated_hours !== undefined ? estimated_hours : existing.estimated_hours,
       req.params.id
     );
 

@@ -86,6 +86,24 @@ router.get('/', (req, res) => {
     params.push(limit, offset);
 
     const workOrders = db.prepare(sql).all(...params);
+
+    // Attach procedure progress for each WO
+    const procProgressStmt = db.prepare(`
+      SELECT wop.work_order_id,
+        COUNT(ps.id) AS total_steps,
+        COUNT(pr.id) AS completed_steps
+      FROM work_order_procedures wop
+      JOIN procedure_steps ps ON ps.procedure_id = wop.procedure_id
+      LEFT JOIN procedure_responses pr ON pr.procedure_step_id = ps.id AND pr.work_order_procedure_id = wop.id
+      WHERE wop.work_order_id = ?
+    `);
+    for (const wo of workOrders) {
+      const progress = procProgressStmt.get(wo.id);
+      if (progress && progress.total_steps > 0) {
+        wo.procedure_progress = { completed: progress.completed_steps, total: progress.total_steps };
+      }
+    }
+
     res.json({
       data: workOrders,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
@@ -205,6 +223,12 @@ router.get('/:id', (req, res) => {
     // Tags
     const tags = db.prepare('SELECT t.* FROM tags t JOIN entity_tags et ON t.id = et.tag_id WHERE et.entity_type = ? AND et.entity_id = ?').all('work_order', req.params.id);
     workOrder.tags = tags;
+
+    // PM schedule info
+    if (workOrder.preventive_schedule_id) {
+      const pmSchedule = db.prepare('SELECT id, title FROM preventive_schedules WHERE id = ?').get(workOrder.preventive_schedule_id);
+      workOrder.preventive_schedule_title = pmSchedule ? pmSchedule.title : null;
+    }
 
     res.json({ ...workOrder, comments, procedures });
   } catch (err) {

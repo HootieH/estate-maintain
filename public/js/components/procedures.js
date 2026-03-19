@@ -118,6 +118,9 @@ const Procedures = {
           </div>
           <div class="page-header-actions">
             ${QRCodes.button('procedure', params.id, proc.title, proc.category || '')}
+            <button class="btn btn-secondary" onclick="Procedures.duplicate('${params.id}')">
+              <i data-lucide="copy"></i> Duplicate
+            </button>
             <button class="btn btn-secondary" onclick="Procedures.showAttachModal('${params.id}')">
               <i data-lucide="link"></i> Attach to Work Order
             </button>
@@ -170,9 +173,11 @@ const Procedures = {
                     <div class="step-number">${s.step_number}</div>
                     <div class="step-info">
                       <strong>${s.title}</strong>
+                      ${s.description ? `<div class="text-muted" style="font-size: 0.85em; margin-top: 2px;">${s.description}</div>` : ''}
                       <div class="step-meta">
                         <span class="badge badge-sm">${stepTypeLabels[s.step_type] || s.step_type}</span>
                         ${s.is_required ? '<span class="badge badge-sm badge-critical">Required</span>' : ''}
+                        ${s.step_type === 'number_input' && (s.min_value != null || s.max_value != null) ? `<span class="badge badge-sm">Range: ${s.min_value != null ? s.min_value : '...'} - ${s.max_value != null ? s.max_value : '...'}</span>` : ''}
                       </div>
                     </div>
                   </div>
@@ -290,6 +295,13 @@ const Procedures = {
     }
   },
 
+  toggleStepDesc(index) {
+    if (this._steps[index]) {
+      this._steps[index]._showDesc = true;
+      this.renderSteps();
+    }
+  },
+
   renderSteps() {
     const builder = document.getElementById('steps-builder');
     if (!builder) return;
@@ -304,16 +316,31 @@ const Procedures = {
       <div class="step-builder-item">
         <div class="step-builder-number">${i + 1}</div>
         <div class="step-builder-fields">
-          <input type="text" class="form-control form-control-sm" placeholder="Step description" value="${s.title}" oninput="Procedures.updateStepField(${i}, 'title', this.value)">
-          <select class="form-control form-control-sm" onchange="Procedures.updateStepField(${i}, 'step_type', this.value)">
-            <option value="checkbox" ${s.step_type === 'checkbox' ? 'selected' : ''}>Checkbox</option>
-            <option value="text_input" ${s.step_type === 'text_input' ? 'selected' : ''}>Text Input</option>
-            <option value="number_input" ${s.step_type === 'number_input' ? 'selected' : ''}>Number Input</option>
-            <option value="pass_fail" ${s.step_type === 'pass_fail' ? 'selected' : ''}>Pass/Fail</option>
-          </select>
-          <label class="step-required-label">
-            <input type="checkbox" ${s.is_required ? 'checked' : ''} onchange="Procedures.updateStepField(${i}, 'is_required', this.checked)"> Required
-          </label>
+          <input type="text" class="form-control form-control-sm" placeholder="Step title" value="${s.title}" oninput="Procedures.updateStepField(${i}, 'title', this.value)">
+          <div class="step-builder-row">
+            <select class="form-control form-control-sm" onchange="Procedures.updateStepField(${i}, 'step_type', this.value); Procedures.renderSteps()">
+              <option value="checkbox" ${s.step_type === 'checkbox' ? 'selected' : ''}>Checkbox</option>
+              <option value="text_input" ${s.step_type === 'text_input' ? 'selected' : ''}>Text Input</option>
+              <option value="number_input" ${s.step_type === 'number_input' ? 'selected' : ''}>Number Input</option>
+              <option value="pass_fail" ${s.step_type === 'pass_fail' ? 'selected' : ''}>Pass/Fail</option>
+            </select>
+            <label class="step-required-label">
+              <input type="checkbox" ${s.is_required ? 'checked' : ''} onchange="Procedures.updateStepField(${i}, 'is_required', this.checked)"> Required
+            </label>
+          </div>
+          ${s.step_type === 'number_input' ? `
+            <div class="step-builder-range">
+              <input type="number" class="form-control form-control-sm" placeholder="Min" value="${s.min_value}" oninput="Procedures.updateStepField(${i}, 'min_value', this.value)" style="width: 100px">
+              <span style="color: var(--text-muted); font-size: 0.85em;">to</span>
+              <input type="number" class="form-control form-control-sm" placeholder="Max" value="${s.max_value}" oninput="Procedures.updateStepField(${i}, 'max_value', this.value)" style="width: 100px">
+              <span style="color: var(--text-muted); font-size: 0.8em;">expected range (optional)</span>
+            </div>
+          ` : ''}
+          ${s.description || s._showDesc ? `
+            <textarea class="form-control form-control-sm" rows="2" placeholder="Description / instructions for this step..." oninput="Procedures.updateStepField(${i}, 'description', this.value)">${s.description || ''}</textarea>
+          ` : `
+            <a href="#" class="step-add-details-link" onclick="event.preventDefault(); Procedures.toggleStepDesc(${i})">+ Add details</a>
+          `}
         </div>
         <div class="step-builder-actions">
           <button type="button" class="btn-icon btn-icon-sm" onclick="Procedures.moveStep(${i}, -1)" title="Move up" ${i === 0 ? 'disabled' : ''}>
@@ -351,7 +378,14 @@ const Procedures = {
         title: document.getElementById('proc-title').value,
         description: document.getElementById('proc-description').value,
         category: document.getElementById('proc-category').value || null,
-        steps: this._steps
+        steps: this._steps.map(s => ({
+          title: s.title,
+          description: s.description || null,
+          step_type: s.step_type,
+          is_required: s.is_required,
+          min_value: s.min_value !== '' && s.min_value != null ? parseFloat(s.min_value) : null,
+          max_value: s.max_value !== '' && s.max_value != null ? parseFloat(s.max_value) : null
+        }))
       };
 
       let result;
@@ -382,6 +416,16 @@ const Procedures = {
       await API.delete(`/procedures/${id}`);
       App.toast('Procedure deleted', 'success');
       Router.navigate('#/procedures');
+    } catch (e) {
+      App.toast(e.message, 'error');
+    }
+  },
+
+  async duplicate(id) {
+    try {
+      const result = await API.post(`/procedures/${id}/duplicate`);
+      App.toast('Procedure duplicated', 'success');
+      Router.navigate(`#/procedures/${result.id}`);
     } catch (e) {
       App.toast(e.message, 'error');
     }
@@ -489,9 +533,11 @@ const Procedures = {
                           ${step.title}
                           ${step.is_required ? '<span class="text-danger">*</span>' : ''}
                         </div>
+                        ${step.description ? `<div class="text-muted" style="font-size: 0.85em; margin: 2px 0 4px;">${step.description}</div>` : ''}
                         <div class="procedure-step-input">
                           ${Procedures.renderStepInput(step, wop.id, workOrderId)}
                         </div>
+                        ${step.response_notes ? `<div class="text-muted" style="font-size: 0.85em; margin-top: 4px; font-style: italic;">Notes: ${step.response_notes}</div>` : ''}
                       </div>
                     </div>
                   `).join('')}
@@ -526,22 +572,35 @@ const Procedures = {
             <button class="btn btn-primary btn-sm" onclick="Procedures.respondStep(${wopId}, ${step.id}, document.getElementById('step-input-${step.id}').value, '${workOrderId}')">Save</button>
           </div>
         `;
-      case 'number_input':
+      case 'number_input': {
+        const hasRange = step.min_value != null || step.max_value != null;
+        const numVal = val != null && val !== '' ? parseFloat(val) : null;
+        const isOutOfRange = hasRange && numVal != null && (
+          (step.min_value != null && numVal < step.min_value) ||
+          (step.max_value != null && numVal > step.max_value)
+        );
         return `
           <div class="step-text-input ${doneClass}">
-            <input type="number" class="form-control form-control-sm" placeholder="Enter number..." value="${val || ''}" id="step-input-${step.id}">
+            <input type="number" class="form-control form-control-sm${isOutOfRange ? ' step-out-of-range' : ''}" placeholder="Enter number..." value="${val || ''}" id="step-input-${step.id}" oninput="Procedures.checkNumberRange(this, ${step.min_value != null ? step.min_value : 'null'}, ${step.max_value != null ? step.max_value : 'null'})">
             <button class="btn btn-primary btn-sm" onclick="Procedures.respondStep(${wopId}, ${step.id}, document.getElementById('step-input-${step.id}').value, '${workOrderId}')">Save</button>
           </div>
+          ${hasRange ? `<div class="step-range-indicator${isOutOfRange ? ' step-range-warning' : ''}">Expected range: ${step.min_value != null ? step.min_value : '...'} - ${step.max_value != null ? step.max_value : '...'}</div>` : ''}
+          ${isOutOfRange ? `<div class="step-range-warning-text">Value is outside the expected range</div>` : ''}
         `;
+      }
       case 'pass_fail':
         return `
           <div class="step-pass-fail ${doneClass}">
-            <button class="btn btn-sm ${val === 'pass' ? 'btn-success' : 'btn-secondary'}" onclick="Procedures.respondStep(${wopId}, ${step.id}, 'pass', '${workOrderId}')">
+            <button class="btn btn-sm ${val === 'pass' ? 'btn-success' : 'btn-secondary'}" onclick="Procedures.respondPassFail(${wopId}, ${step.id}, 'pass', '${workOrderId}')">
               <i data-lucide="check"></i> Pass
             </button>
-            <button class="btn btn-sm ${val === 'fail' ? 'btn-danger' : 'btn-secondary'}" onclick="Procedures.respondStep(${wopId}, ${step.id}, 'fail', '${workOrderId}')">
+            <button class="btn btn-sm ${val === 'fail' ? 'btn-danger' : 'btn-secondary'}" onclick="Procedures.respondPassFail(${wopId}, ${step.id}, 'fail', '${workOrderId}')">
               <i data-lucide="x"></i> Fail
             </button>
+          </div>
+          <div class="step-notes-section" id="step-notes-section-${step.id}" style="${val === 'fail' ? '' : 'display:none;'}">
+            <textarea class="form-control form-control-sm" id="step-notes-${step.id}" rows="2" placeholder="${val === 'fail' ? 'Failure notes (required)...' : 'Add notes (optional)...'}">${step.response_notes || ''}</textarea>
+            <button class="btn btn-secondary btn-sm" style="margin-top: 4px;" onclick="Procedures.saveStepNotes(${wopId}, ${step.id}, '${workOrderId}')">Save Notes</button>
           </div>
         `;
       default:
@@ -551,11 +610,14 @@ const Procedures = {
 
   async respondStep(wopId, stepId, value, workOrderId) {
     try {
-      await API.post('/procedures/respond', {
+      const result = await API.post('/procedures/respond', {
         work_order_procedure_id: wopId,
         procedure_step_id: stepId,
         value: value
       });
+      if (result.out_of_range && result.warning) {
+        App.toast(result.warning, 'warning');
+      }
       // Re-render the procedures section
       const procContainer = document.getElementById('wo-procedures-section');
       if (procContainer) {
@@ -563,6 +625,93 @@ const Procedures = {
       }
     } catch (e) {
       App.toast(e.message, 'error');
+    }
+  },
+
+  async respondPassFail(wopId, stepId, value, workOrderId) {
+    if (value === 'fail') {
+      // Show notes section and prompt for notes
+      const notesSection = document.getElementById(`step-notes-section-${stepId}`);
+      const notesInput = document.getElementById(`step-notes-${stepId}`);
+      if (notesSection) {
+        notesSection.style.display = '';
+        if (notesInput) {
+          notesInput.placeholder = 'Failure notes (required)...';
+          notesInput.focus();
+        }
+      }
+      const notes = notesInput ? notesInput.value.trim() : '';
+      if (!notes) {
+        App.toast('Please add notes explaining the failure, then click Save Notes', 'warning');
+        // Still save the fail value but show the notes section prominently
+      }
+      try {
+        await API.post('/procedures/respond', {
+          work_order_procedure_id: wopId,
+          procedure_step_id: stepId,
+          value: value,
+          notes: notes || null
+        });
+        const procContainer = document.getElementById('wo-procedures-section');
+        if (procContainer) {
+          await Procedures.renderWorkOrderProcedures(workOrderId, procContainer);
+        }
+      } catch (e) {
+        App.toast(e.message, 'error');
+      }
+    } else {
+      // Pass — include any existing notes
+      const notesInput = document.getElementById(`step-notes-${stepId}`);
+      const notes = notesInput ? notesInput.value.trim() : '';
+      try {
+        await API.post('/procedures/respond', {
+          work_order_procedure_id: wopId,
+          procedure_step_id: stepId,
+          value: value,
+          notes: notes || null
+        });
+        const procContainer = document.getElementById('wo-procedures-section');
+        if (procContainer) {
+          await Procedures.renderWorkOrderProcedures(workOrderId, procContainer);
+        }
+      } catch (e) {
+        App.toast(e.message, 'error');
+      }
+    }
+  },
+
+  async saveStepNotes(wopId, stepId, workOrderId) {
+    const notesInput = document.getElementById(`step-notes-${stepId}`);
+    const notes = notesInput ? notesInput.value.trim() : '';
+    try {
+      // Re-submit the current value with updated notes
+      await API.post('/procedures/respond', {
+        work_order_procedure_id: wopId,
+        procedure_step_id: stepId,
+        value: null, // will be overridden by existing value on re-render
+        notes: notes || null
+      });
+      App.toast('Notes saved', 'success');
+      const procContainer = document.getElementById('wo-procedures-section');
+      if (procContainer) {
+        await Procedures.renderWorkOrderProcedures(workOrderId, procContainer);
+      }
+    } catch (e) {
+      App.toast(e.message, 'error');
+    }
+  },
+
+  checkNumberRange(input, min, max) {
+    const val = parseFloat(input.value);
+    if (isNaN(val)) {
+      input.classList.remove('step-out-of-range');
+      return;
+    }
+    const outOfRange = (min != null && val < min) || (max != null && val > max);
+    if (outOfRange) {
+      input.classList.add('step-out-of-range');
+    } else {
+      input.classList.remove('step-out-of-range');
     }
   },
 
