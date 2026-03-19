@@ -377,7 +377,8 @@ const App = {
 
   expandSectionForRoute(route) {
     const sectionMap = {
-      workorders: 'work', requests: 'work', preventive: 'work', reviews: 'work', approvals: 'work',
+      workorders: 'work', requests: 'work', preventive: 'work', reviews: 'work',
+      approvals: 'procurement',
       properties: 'estate', assets: 'estate', procedures: 'estate',
       parts: 'procurement', vendors: 'procurement', purchaseorders: 'procurement',
       invoices: 'procurement', projects: 'procurement',

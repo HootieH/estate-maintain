@@ -127,7 +127,7 @@ const UserManagement = {
                         </a>
                       </td>
                       <td>${u.email || '-'}</td>
-                      <td><span class="role-badge role-${u.role || 'technician'}">${u.role || 'technician'}</span></td>
+                      <td>${u.is_owner ? '<span class="god-badge">god mode</span>' : `<span class="role-badge role-${u.role || 'technician'}">${u.role || 'technician'}</span>`}</td>
                       <td>${u.teams && u.teams.length ? u.teams.map(t => '<span class="team-tag">' + t.name + '</span>').join('') : '<span class="text-muted">No teams</span>'}</td>
                       <td><span class="status-badge status-${u.status || 'active'}">${u.status || 'active'}</span></td>
                       <td class="text-muted text-sm">${UserManagement._relativeTime(u.last_active_at)}</td>

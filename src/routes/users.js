@@ -47,7 +47,7 @@ router.get('/', authenticate, requirePermission('users:view'), (req, res) => {
     const total = countRow.total;
 
     const users = db.prepare(`
-      SELECT u.id, u.email, u.name, u.role,
+      SELECT u.id, u.email, u.name, u.role, u.is_owner,
              u.status, u.avatar_color, u.is_team_lead,
              u.last_login_at, u.created_at,
              (SELECT COUNT(*) FROM user_passkeys WHERE user_id = u.id) as passkey_count
@@ -532,6 +532,31 @@ router.post('/:id/team-lead', authenticate, requirePermission('users:edit'), (re
     res.json(sanitizeUser(updated));
   } catch (err) {
     res.status(500).json({ error: 'Failed to toggle team lead', details: err.message });
+  }
+});
+
+// POST /:id/god-mode — Toggle god mode (owner only)
+router.post('/:id/god-mode', authenticate, (req, res) => {
+  try {
+    if (!req.user.is_owner) {
+      return res.status(403).json({ error: 'Only god mode users can promote others' });
+    }
+
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const newValue = user.is_owner ? 0 : 1;
+    db.prepare('UPDATE users SET is_owner = ? WHERE id = ?').run(newValue, req.params.id);
+
+    logActivity('user', parseInt(req.params.id), newValue ? 'god_mode_granted' : 'god_mode_revoked',
+      `God mode ${newValue ? 'granted to' : 'revoked from'} ${user.name} by ${req.user.name}`, req.user.id);
+
+    const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+    res.json(sanitizeUser(updated));
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to toggle god mode', details: err.message });
   }
 });
 
