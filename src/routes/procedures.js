@@ -46,7 +46,7 @@ router.get('/workorder/:workOrderId', (req, res) => {
 
     for (const wop of wops) {
       const steps = db.prepare(`
-        SELECT ps.*, pr.value AS response_value, pr.completed_by, pr.completed_at AS response_completed_at,
+        SELECT ps.*, pr.value AS response_value, pr.notes AS response_notes, pr.completed_by, pr.completed_at AS response_completed_at,
           u.name AS completed_by_name
         FROM procedure_steps ps
         LEFT JOIN procedure_responses pr ON pr.procedure_step_id = ps.id AND pr.work_order_procedure_id = ?
@@ -115,12 +115,12 @@ router.post('/', requireRole('admin', 'manager'), (req, res) => {
 
     if (steps && Array.isArray(steps)) {
       const insertStep = db.prepare(`
-        INSERT INTO procedure_steps (procedure_id, step_number, title, step_type, is_required)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO procedure_steps (procedure_id, step_number, title, description, step_type, is_required, min_value, max_value)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
       for (let i = 0; i < steps.length; i++) {
         const s = steps[i];
-        insertStep.run(procedureId, i + 1, s.title, s.step_type || 'checkbox', s.is_required ? 1 : 0);
+        insertStep.run(procedureId, i + 1, s.title, s.description || null, s.step_type || 'checkbox', s.is_required ? 1 : 0, s.min_value != null ? s.min_value : null, s.max_value != null ? s.max_value : null);
       }
     }
 
@@ -159,12 +159,12 @@ router.put('/:id', requireRole('admin', 'manager'), (req, res) => {
     if (steps && Array.isArray(steps)) {
       db.prepare('DELETE FROM procedure_steps WHERE procedure_id = ?').run(req.params.id);
       const insertStep = db.prepare(`
-        INSERT INTO procedure_steps (procedure_id, step_number, title, step_type, is_required)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO procedure_steps (procedure_id, step_number, title, description, step_type, is_required, min_value, max_value)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
       for (let i = 0; i < steps.length; i++) {
         const s = steps[i];
-        insertStep.run(req.params.id, i + 1, s.title, s.step_type || 'checkbox', s.is_required ? 1 : 0);
+        insertStep.run(req.params.id, i + 1, s.title, s.description || null, s.step_type || 'checkbox', s.is_required ? 1 : 0, s.min_value != null ? s.min_value : null, s.max_value != null ? s.max_value : null);
       }
     }
 
@@ -203,7 +203,7 @@ router.post('/:id/steps', requireRole('admin', 'manager'), (req, res) => {
       return res.status(404).json({ error: 'Procedure not found' });
     }
 
-    const { title, step_type, is_required } = req.body;
+    const { title, description, step_type, is_required, min_value, max_value } = req.body;
     if (!title) {
       return res.status(400).json({ error: 'Step title is required' });
     }
@@ -213,9 +213,9 @@ router.post('/:id/steps', requireRole('admin', 'manager'), (req, res) => {
     const stepNumber = (maxStep.max_num || 0) + 1;
 
     const result = db.prepare(`
-      INSERT INTO procedure_steps (procedure_id, step_number, title, step_type, is_required)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(req.params.id, stepNumber, title, step_type || 'checkbox', is_required ? 1 : 0);
+      INSERT INTO procedure_steps (procedure_id, step_number, title, description, step_type, is_required, min_value, max_value)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(req.params.id, stepNumber, title, description || null, step_type || 'checkbox', is_required ? 1 : 0, min_value != null ? min_value : null, max_value != null ? max_value : null);
 
     db.prepare('UPDATE procedures SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(req.params.id);
 
@@ -234,17 +234,20 @@ router.put('/:id/steps/:stepId', requireRole('admin', 'manager'), (req, res) => 
       return res.status(404).json({ error: 'Step not found' });
     }
 
-    const { title, step_type, is_required, step_number } = req.body;
+    const { title, description, step_type, is_required, step_number, min_value, max_value } = req.body;
 
     db.prepare(`
       UPDATE procedure_steps SET
-        title = ?, step_type = ?, is_required = ?, step_number = ?
+        title = ?, description = ?, step_type = ?, is_required = ?, step_number = ?, min_value = ?, max_value = ?
       WHERE id = ?
     `).run(
       title || step.title,
+      description !== undefined ? (description || null) : step.description,
       step_type || step.step_type,
       is_required !== undefined ? (is_required ? 1 : 0) : step.is_required,
       step_number !== undefined ? step_number : step.step_number,
+      min_value !== undefined ? min_value : step.min_value,
+      max_value !== undefined ? max_value : step.max_value,
       req.params.stepId
     );
 
@@ -317,7 +320,7 @@ router.post('/:id/attach/:workOrderId', (req, res) => {
 // POST /respond — submit a step response
 router.post('/respond', (req, res) => {
   try {
-    const { work_order_procedure_id, procedure_step_id, value } = req.body;
+    const { work_order_procedure_id, procedure_step_id, value, notes } = req.body;
 
     if (!work_order_procedure_id || !procedure_step_id) {
       return res.status(400).json({ error: 'work_order_procedure_id and procedure_step_id are required' });
@@ -328,6 +331,24 @@ router.post('/respond', (req, res) => {
       return res.status(404).json({ error: 'Work order procedure not found' });
     }
 
+    // Check range for number_input steps
+    let out_of_range = false;
+    let warning = null;
+    const stepDef = db.prepare('SELECT * FROM procedure_steps WHERE id = ?').get(procedure_step_id);
+    if (stepDef && stepDef.step_type === 'number_input' && value != null && value !== '') {
+      const numVal = parseFloat(value);
+      if (!isNaN(numVal)) {
+        if (stepDef.min_value != null && numVal < stepDef.min_value) {
+          out_of_range = true;
+          warning = `Value ${numVal} is below the expected minimum of ${stepDef.min_value}`;
+        }
+        if (stepDef.max_value != null && numVal > stepDef.max_value) {
+          out_of_range = true;
+          warning = `Value ${numVal} is above the expected maximum of ${stepDef.max_value}`;
+        }
+      }
+    }
+
     // Upsert response
     const existing = db.prepare(
       'SELECT id FROM procedure_responses WHERE work_order_procedure_id = ? AND procedure_step_id = ?'
@@ -335,12 +356,12 @@ router.post('/respond', (req, res) => {
 
     if (existing) {
       db.prepare(
-        'UPDATE procedure_responses SET value = ?, completed_by = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?'
-      ).run(value, req.user.id, existing.id);
+        'UPDATE procedure_responses SET value = ?, notes = ?, completed_by = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?'
+      ).run(value, notes || null, req.user.id, existing.id);
     } else {
       db.prepare(
-        'INSERT INTO procedure_responses (work_order_procedure_id, procedure_step_id, value, completed_by) VALUES (?, ?, ?, ?)'
-      ).run(work_order_procedure_id, procedure_step_id, value, req.user.id);
+        'INSERT INTO procedure_responses (work_order_procedure_id, procedure_step_id, value, notes, completed_by) VALUES (?, ?, ?, ?, ?)'
+      ).run(work_order_procedure_id, procedure_step_id, value, notes || null, req.user.id);
     }
 
     // Update work_order_procedure status
@@ -361,9 +382,48 @@ router.post('/respond', (req, res) => {
       db.prepare("UPDATE work_order_procedures SET status = 'completed', completed_at = CURRENT_TIMESTAMP WHERE id = ?").run(work_order_procedure_id);
     }
 
-    res.json({ message: 'Response saved' });
+    const result = { message: 'Response saved' };
+    if (out_of_range) {
+      result.out_of_range = true;
+      result.warning = warning;
+    }
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: 'Failed to save response', details: err.message });
+  }
+});
+
+// POST /:id/duplicate — duplicate a procedure and its steps
+router.post('/:id/duplicate', requireRole('admin', 'manager'), (req, res) => {
+  try {
+    const original = db.prepare('SELECT * FROM procedures WHERE id = ?').get(req.params.id);
+    if (!original) {
+      return res.status(404).json({ error: 'Procedure not found' });
+    }
+
+    const result = db.prepare(`
+      INSERT INTO procedures (title, description, category, created_by)
+      VALUES (?, ?, ?, ?)
+    `).run(original.title + ' (Copy)', original.description, original.category, req.user.id);
+
+    const newId = result.lastInsertRowid;
+
+    const originalSteps = db.prepare('SELECT * FROM procedure_steps WHERE procedure_id = ? ORDER BY step_number ASC').all(req.params.id);
+    const insertStep = db.prepare(`
+      INSERT INTO procedure_steps (procedure_id, step_number, title, description, step_type, is_required, min_value, max_value)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const s of originalSteps) {
+      insertStep.run(newId, s.step_number, s.title, s.description, s.step_type, s.is_required, s.min_value, s.max_value);
+    }
+
+    const newProc = db.prepare('SELECT * FROM procedures WHERE id = ?').get(newId);
+    const newSteps = db.prepare('SELECT * FROM procedure_steps WHERE procedure_id = ? ORDER BY step_number ASC').all(newId);
+    logActivity('procedure', Number(newId), 'created', `Procedure "${newProc.title}" duplicated from "${original.title}"`, req.user.id);
+
+    res.status(201).json({ ...newProc, steps: newSteps });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to duplicate procedure', details: err.message });
   }
 });
 

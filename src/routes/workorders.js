@@ -1,5 +1,5 @@
 const express = require('express');
-const { db, logActivity, createNotification } = require('../db');
+const { db, logActivity, createNotification, ensureChannel, postSystemMessage } = require('../db');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { getPropertyScope } = require('../middleware/permissions');
 
@@ -248,7 +248,8 @@ router.post('/', (req, res) => {
 // PUT /:id
 router.put('/:id', (req, res) => {
   try {
-    const existing = db.prepare('SELECT * FROM work_orders WHERE id = ?').get(req.params.id);
+    const id = req.params.id;
+    const existing = db.prepare('SELECT * FROM work_orders WHERE id = ?').get(id);
     if (!existing) {
       return res.status(404).json({ error: 'Work order not found' });
     }
@@ -256,6 +257,20 @@ router.put('/:id', (req, res) => {
     const { title, description, property_id, asset_id, assigned_to, assigned_team_id, priority, status, category, due_date } = req.body;
 
     const newStatus = status || existing.status;
+
+    // Completion validation: check for incomplete required procedure steps
+    if (newStatus === 'completed' && existing.status !== 'completed') {
+      const incomplete = db.prepare(`
+        SELECT ps.title FROM work_order_procedures wop
+        JOIN procedure_steps ps ON ps.procedure_id = wop.procedure_id
+        WHERE wop.work_order_id = ? AND ps.is_required = 1
+        AND ps.id NOT IN (SELECT procedure_step_id FROM procedure_responses WHERE work_order_procedure_id = wop.id)
+      `).all(id);
+      if (incomplete.length > 0) {
+        return res.status(400).json({ error: 'Required checklist steps not completed', incomplete_steps: incomplete.map(s => s.title) });
+      }
+    }
+
     let completedAt = existing.completed_at;
     if (newStatus === 'completed' && existing.status !== 'completed') {
       completedAt = new Date().toISOString();
@@ -263,11 +278,18 @@ router.put('/:id', (req, res) => {
       completedAt = null;
     }
 
+    // Set started_at when status changes to in_progress (if not already set)
+    let startedAt = existing.started_at;
+    if (newStatus === 'in_progress' && !existing.started_at) {
+      startedAt = new Date().toISOString();
+    }
+
     db.prepare(`
       UPDATE work_orders SET
         title = ?, description = ?, property_id = ?, asset_id = ?,
         assigned_to = ?, assigned_team_id = ?, priority = ?, status = ?,
-        category = ?, due_date = ?, completed_at = ?, updated_at = CURRENT_TIMESTAMP
+        category = ?, due_date = ?, completed_at = ?, started_at = COALESCE(?, started_at),
+        updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).run(
       title || existing.title,
@@ -281,15 +303,38 @@ router.put('/:id', (req, res) => {
       category !== undefined ? category : existing.category,
       due_date !== undefined ? due_date : existing.due_date,
       completedAt,
-      req.params.id
+      startedAt,
+      id
     );
 
-    const workOrder = db.prepare('SELECT * FROM work_orders WHERE id = ?').get(req.params.id);
+    const workOrder = db.prepare('SELECT * FROM work_orders WHERE id = ?').get(id);
     logActivity('work_order', workOrder.id, 'updated', `Work order "${workOrder.title}" updated`, req.user.id);
 
-    // Notify creator if status changed
-    if (status && status !== existing.status && existing.created_by && existing.created_by !== req.user.id) {
-      createNotification(existing.created_by, 'status_change', `Work order status changed to ${status}: ${workOrder.title}`, null, 'work_order', workOrder.id);
+    // Post system message and notify on status changes
+    if (status && status !== existing.status) {
+      postSystemMessage('work_order', 'wo_' + id, `Status changed to ${newStatus} by ${req.user.name}`);
+
+      // Notify creator if status changed
+      if (existing.created_by && existing.created_by !== req.user.id) {
+        createNotification(existing.created_by, 'status_change', `Work order status changed to ${status}: ${workOrder.title}`, null, 'work_order', workOrder.id);
+      }
+
+      // Auto-submit for review when a PM work order is completed
+      if (newStatus === 'completed' && workOrder.preventive_schedule_id) {
+        let reviewerId = null;
+        if (workOrder.assigned_team_id) {
+          const lead = db.prepare('SELECT u.id FROM users u JOIN user_teams ut ON u.id = ut.user_id WHERE ut.team_id = ? AND u.is_team_lead = 1 LIMIT 1').get(workOrder.assigned_team_id);
+          if (lead) reviewerId = lead.id;
+        }
+        if (!reviewerId) {
+          const mgr = db.prepare("SELECT id FROM users WHERE role = 'manager' AND status = 'active' LIMIT 1").get();
+          if (mgr) reviewerId = mgr.id;
+        }
+        if (reviewerId) {
+          db.prepare("INSERT INTO work_order_reviews (work_order_id, reviewer_id, status) VALUES (?, ?, 'pending')").run(id, reviewerId);
+          createNotification(reviewerId, 'assignment', `PM work order needs review: ${workOrder.title}`, null, 'work_order', workOrder.id);
+        }
+      }
     }
 
     res.json(workOrder);

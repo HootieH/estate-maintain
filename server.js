@@ -4,7 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const cron = require('node-cron');
-const { db, logActivity } = require('./src/db');
+const { db, logActivity, createNotification, ensureChannel, postSystemMessage } = require('./src/db');
 const { authenticate } = require('./src/middleware/auth');
 
 const authRoutes = require('./src/routes/auth');
@@ -113,38 +113,76 @@ cron.schedule('0 0 * * *', () => {
       "SELECT * FROM preventive_schedules WHERE is_active = 1 AND next_due <= ?"
     ).all(today);
 
+    let created = 0;
+    let skipped = 0;
+
     for (const schedule of overdueSchedules) {
+      // Deduplicate: skip if an open/in_progress WO already exists for this schedule
+      const existingWo = db.prepare(
+        "SELECT id FROM work_orders WHERE preventive_schedule_id = ? AND status IN ('open','in_progress') LIMIT 1"
+      ).get(schedule.id);
+
+      if (existingWo) {
+        console.log(`[CRON] Skipping PM schedule "${schedule.title}" (id=${schedule.id}) — open WO #${existingWo.id} already exists`);
+        skipped++;
+        continue;
+      }
+
       // Create a work order for the overdue preventive task
       const result = db.prepare(`
-        INSERT INTO work_orders (title, description, property_id, asset_id, assigned_team_id, priority, status, category)
-        VALUES (?, ?, ?, ?, ?, ?, 'open', ?)
+        INSERT INTO work_orders (title, description, property_id, asset_id, assigned_to, assigned_team_id, priority, status, category, due_date, preventive_schedule_id, estimated_hours)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?)
       `).run(
         `[PM] ${schedule.title}`,
         schedule.description || `Preventive maintenance: ${schedule.title}`,
         schedule.property_id,
         schedule.asset_id,
+        schedule.assigned_to || null,
         schedule.assigned_team_id,
         schedule.priority || 'medium',
-        schedule.category
+        schedule.category,
+        schedule.next_due,
+        schedule.id,
+        schedule.estimated_cost || null
       );
 
-      logActivity('work_order', result.lastInsertRowid, 'created', `Auto-created from preventive schedule "${schedule.title}"`, null);
+      const woId = result.lastInsertRowid;
+      logActivity('work_order', woId, 'created', `Auto-created from preventive schedule "${schedule.title}"`, null);
+
+      // Post system message to work order channel
+      postSystemMessage('work_order', 'wo_' + woId, `Preventive maintenance work order auto-generated from schedule: ${schedule.title}`);
+
+      // Send notifications
+      if (schedule.assigned_to) {
+        createNotification(schedule.assigned_to, 'pm_due', `PM Task Due: ${schedule.title}`, null, 'work_order', woId);
+      } else if (schedule.assigned_team_id) {
+        // Notify all team members
+        const teamMembers = db.prepare('SELECT user_id FROM user_teams WHERE team_id = ?').all(schedule.assigned_team_id);
+        for (const member of teamMembers) {
+          createNotification(member.user_id, 'pm_due', `PM Task Due: ${schedule.title}`, null, 'work_order', woId);
+        }
+      }
 
       // Auto-attach procedure if PM schedule has one
       if (schedule.procedure_id) {
-        db.prepare('INSERT INTO work_order_procedures (work_order_id, procedure_id) VALUES (?, ?)').run(result.lastInsertRowid, schedule.procedure_id);
+        db.prepare('INSERT INTO work_order_procedures (work_order_id, procedure_id) VALUES (?, ?)').run(woId, schedule.procedure_id);
       }
 
-      // Calculate and update next_due
+      created++;
+
+      // Calculate and update next_due — advance in a loop until it's in the future
       const nextDate = new Date(schedule.next_due);
-      switch (schedule.frequency) {
-        case 'daily': nextDate.setDate(nextDate.getDate() + 1); break;
-        case 'weekly': nextDate.setDate(nextDate.getDate() + 7); break;
-        case 'biweekly': nextDate.setDate(nextDate.getDate() + 14); break;
-        case 'monthly': nextDate.setMonth(nextDate.getMonth() + 1); break;
-        case 'quarterly': nextDate.setMonth(nextDate.getMonth() + 3); break;
-        case 'semiannual': nextDate.setMonth(nextDate.getMonth() + 6); break;
-        case 'annual': nextDate.setFullYear(nextDate.getFullYear() + 1); break;
+      const todayDate = new Date();
+      while (nextDate <= todayDate) {
+        switch (schedule.frequency) {
+          case 'daily': nextDate.setDate(nextDate.getDate() + 1); break;
+          case 'weekly': nextDate.setDate(nextDate.getDate() + 7); break;
+          case 'biweekly': nextDate.setDate(nextDate.getDate() + 14); break;
+          case 'monthly': nextDate.setMonth(nextDate.getMonth() + 1); break;
+          case 'quarterly': nextDate.setMonth(nextDate.getMonth() + 3); break;
+          case 'semiannual': nextDate.setMonth(nextDate.getMonth() + 6); break;
+          case 'annual': nextDate.setFullYear(nextDate.getFullYear() + 1); break;
+        }
       }
 
       db.prepare('UPDATE preventive_schedules SET next_due = ? WHERE id = ?').run(
@@ -153,8 +191,8 @@ cron.schedule('0 0 * * *', () => {
       );
     }
 
-    if (overdueSchedules.length > 0) {
-      console.log(`[CRON] Created ${overdueSchedules.length} work orders from overdue preventive schedules`);
+    if (created > 0 || skipped > 0) {
+      console.log(`[CRON] PM schedules processed: ${created} work orders created, ${skipped} skipped (duplicates)`);
     }
   } catch (err) {
     console.error('[CRON] Preventive maintenance check failed:', err.message);

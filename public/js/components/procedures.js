@@ -201,8 +201,11 @@ const Procedures = {
         proc = await API.get(`/procedures/${editId}`);
         this._steps = (proc.steps || []).map(s => ({
           title: s.title,
+          description: s.description || '',
           step_type: s.step_type,
-          is_required: !!s.is_required
+          is_required: !!s.is_required,
+          min_value: s.min_value != null ? s.min_value : '',
+          max_value: s.max_value != null ? s.max_value : ''
         }));
       } catch (e) {
         container.innerHTML = `<div class="error-state"><p>${e.message}</p></div>`;
@@ -263,7 +266,7 @@ const Procedures = {
   },
 
   addStep() {
-    this._steps.push({ title: '', step_type: 'checkbox', is_required: false });
+    this._steps.push({ title: '', description: '', step_type: 'checkbox', is_required: false, min_value: '', max_value: '' });
     this.renderSteps();
   },
 

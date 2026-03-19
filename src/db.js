@@ -1038,6 +1038,38 @@ try {
   db.exec("ALTER TABLE bids ADD COLUMN revised_from_id INTEGER REFERENCES bids(id)");
 }
 
+// PM improvements migrations
+try {
+  db.prepare("SELECT preventive_schedule_id FROM work_orders LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE work_orders ADD COLUMN preventive_schedule_id INTEGER REFERENCES preventive_schedules(id)");
+  db.exec("ALTER TABLE work_orders ADD COLUMN started_at DATETIME");
+  // Backfill: link existing [PM] work orders to their schedules by matching title
+  try {
+    db.exec(`
+      UPDATE work_orders SET preventive_schedule_id = (
+        SELECT ps.id FROM preventive_schedules ps
+        WHERE work_orders.title = '[PM] ' || ps.title LIMIT 1
+      ) WHERE title LIKE '[PM]%' AND preventive_schedule_id IS NULL
+    `);
+  } catch(_) {}
+}
+
+// Procedure step improvements: min/max range, description support
+try {
+  db.prepare("SELECT min_value FROM procedure_steps LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE procedure_steps ADD COLUMN min_value REAL");
+  db.exec("ALTER TABLE procedure_steps ADD COLUMN max_value REAL");
+}
+
+// Procedure response improvements: notes for fail-with-reason
+try {
+  db.prepare("SELECT notes FROM procedure_responses LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE procedure_responses ADD COLUMN notes TEXT");
+}
+
 // Seed permissions (idempotent)
 const permissionDefs = [
   ['workorders', 'view'], ['workorders', 'create'], ['workorders', 'edit'], ['workorders', 'delete'],

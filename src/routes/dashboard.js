@@ -24,6 +24,8 @@ router.get('/', (req, res) => {
         assetsDown: 0,
         createdTrend: [],
         completedTrend: [],
+        pm_compliance: { total: 0, completed: 0, rate: 100 },
+        my_pm_tasks: [],
       });
     }
 
@@ -97,6 +99,31 @@ router.get('/', (req, res) => {
       LIMIT 20
     `).all();
 
+    // PM compliance (last 30 days)
+    const totalPM = db.prepare(
+      `SELECT COUNT(*) AS c FROM work_orders WHERE preventive_schedule_id IS NOT NULL AND created_at >= date('now', '-30 days')${woFilter}`
+    ).get(...woParams).c;
+    const completedPM = db.prepare(
+      `SELECT COUNT(*) AS c FROM work_orders WHERE preventive_schedule_id IS NOT NULL AND status = 'completed' AND created_at >= date('now', '-30 days')${woFilter}`
+    ).get(...woParams).c;
+    const pm_compliance = {
+      total: totalPM,
+      completed: completedPM,
+      rate: totalPM > 0 ? Math.round(completedPM / totalPM * 100) : 100
+    };
+
+    // Open PM work orders for current user
+    const userId = req.user ? req.user.id : null;
+    const my_pm_tasks = userId ? db.prepare(`
+      SELECT wo.id, wo.title, wo.due_date, wo.status, wo.priority, p.name AS property_name
+      FROM work_orders wo
+      LEFT JOIN properties p ON wo.property_id = p.id
+      WHERE wo.preventive_schedule_id IS NOT NULL
+      AND wo.status IN ('open', 'in_progress')
+      AND (wo.assigned_to = ? OR wo.assigned_team_id IN (SELECT team_id FROM user_teams WHERE user_id = ?))${woFilter}
+      ORDER BY wo.due_date ASC LIMIT 10
+    `).all(userId, userId, ...woParams) : [];
+
     // Downtime summary
     const activeDowntime = db.prepare(`SELECT COUNT(*) AS count FROM asset_downtime WHERE ended_at IS NULL${hasScopeFilter ? ` AND asset_id IN (SELECT id FROM assets WHERE property_id IN (${scope.map(() => '?').join(',')}))` : ''}`).get(...woParams);
 
@@ -121,6 +148,8 @@ router.get('/', (req, res) => {
       assetsDown: activeDowntime.count,
       createdTrend,
       completedTrend,
+      pm_compliance,
+      my_pm_tasks,
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch dashboard data', details: err.message });

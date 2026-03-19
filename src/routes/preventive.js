@@ -1,5 +1,5 @@
 const express = require('express');
-const { db, logActivity } = require('../db');
+const { db, logActivity, createNotification, ensureChannel, postSystemMessage } = require('../db');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { getPropertyScope } = require('../middleware/permissions');
 
@@ -100,7 +100,16 @@ router.get('/:id', (req, res) => {
       return res.status(404).json({ error: 'Preventive schedule not found' });
     }
 
-    res.json(schedule);
+    // Fetch completion history from linked work orders
+    const history = db.prepare(`
+      SELECT id, title, status, completed_at, assigned_to, signed_off_by
+      FROM work_orders
+      WHERE preventive_schedule_id = ?
+      ORDER BY created_at DESC
+      LIMIT 20
+    `).all(req.params.id);
+
+    res.json({ ...schedule, history });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch preventive schedule', details: err.message });
   }
@@ -109,7 +118,7 @@ router.get('/:id', (req, res) => {
 // POST /
 router.post('/', requireRole('admin', 'manager'), (req, res) => {
   try {
-    const { title, description, property_id, asset_id, assigned_team_id, frequency, next_due, category, priority, is_active, procedure_id } = req.body;
+    const { title, description, property_id, asset_id, assigned_team_id, assigned_to, frequency, next_due, category, priority, is_active, procedure_id, estimated_cost } = req.body;
 
     if (!title || !property_id || !frequency) {
       return res.status(400).json({ error: 'Title, property_id, and frequency are required' });
@@ -118,14 +127,15 @@ router.post('/', requireRole('admin', 'manager'), (req, res) => {
     const computedNextDue = next_due || calculateNextDue(frequency);
 
     const result = db.prepare(`
-      INSERT INTO preventive_schedules (title, description, property_id, asset_id, assigned_team_id, frequency, next_due, category, priority, is_active, procedure_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO preventive_schedules (title, description, property_id, asset_id, assigned_team_id, assigned_to, frequency, next_due, category, priority, is_active, procedure_id, estimated_cost)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       title, description || null, property_id,
       asset_id || null, assigned_team_id || null,
+      assigned_to || null,
       frequency, computedNextDue, category || null,
       priority || 'medium', is_active !== undefined ? is_active : 1,
-      procedure_id || null
+      procedure_id || null, estimated_cost || null
     );
 
     const schedule = db.prepare('SELECT * FROM preventive_schedules WHERE id = ?').get(result.lastInsertRowid);
@@ -145,13 +155,13 @@ router.put('/:id', requireRole('admin', 'manager'), (req, res) => {
       return res.status(404).json({ error: 'Preventive schedule not found' });
     }
 
-    const { title, description, property_id, asset_id, assigned_team_id, frequency, next_due, category, priority, is_active, procedure_id } = req.body;
+    const { title, description, property_id, asset_id, assigned_team_id, assigned_to, frequency, next_due, category, priority, is_active, procedure_id, estimated_cost } = req.body;
 
     db.prepare(`
       UPDATE preventive_schedules SET
         title = ?, description = ?, property_id = ?, asset_id = ?, assigned_team_id = ?,
-        frequency = ?, next_due = ?, category = ?, priority = ?, is_active = ?,
-        procedure_id = ?
+        assigned_to = ?, frequency = ?, next_due = ?, category = ?, priority = ?, is_active = ?,
+        procedure_id = ?, estimated_cost = ?
       WHERE id = ?
     `).run(
       title || existing.title,
@@ -159,12 +169,14 @@ router.put('/:id', requireRole('admin', 'manager'), (req, res) => {
       property_id || existing.property_id,
       asset_id !== undefined ? asset_id : existing.asset_id,
       assigned_team_id !== undefined ? assigned_team_id : existing.assigned_team_id,
+      assigned_to !== undefined ? assigned_to : existing.assigned_to,
       frequency || existing.frequency,
       next_due !== undefined ? next_due : existing.next_due,
       category !== undefined ? category : existing.category,
       priority || existing.priority,
       is_active !== undefined ? is_active : existing.is_active,
       procedure_id !== undefined ? procedure_id : existing.procedure_id,
+      estimated_cost !== undefined ? estimated_cost : existing.estimated_cost,
       req.params.id
     );
 

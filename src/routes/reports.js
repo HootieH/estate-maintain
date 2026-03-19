@@ -206,7 +206,7 @@ router.get('/preventive', (req, res) => {
     ).get(today).count;
 
     // Compliance: completed PM work orders vs total PM work orders generated
-    let complianceWhere = "wo.title LIKE '[PM]%'";
+    let complianceWhere = "wo.preventive_schedule_id IS NOT NULL";
     const complianceParams = [];
     if (start_date) {
       complianceWhere += ' AND wo.created_at >= ?';
@@ -233,12 +233,52 @@ router.get('/preventive', (req, res) => {
       GROUP BY frequency
     `).all();
 
+    // Per-asset PM compliance
+    const asset_compliance = db.prepare(`
+      SELECT
+        a.id AS asset_id,
+        a.name AS asset_name,
+        p.name AS property_name,
+        COUNT(DISTINCT ps.id) AS total_scheduled,
+        COUNT(DISTINCT CASE WHEN wo.status = 'completed' THEN wo.id END) AS completed,
+        CASE
+          WHEN COUNT(wo.id) > 0
+          THEN ROUND(COUNT(DISTINCT CASE WHEN wo.status = 'completed' THEN wo.id END) * 100.0 / COUNT(wo.id), 1)
+          ELSE 100
+        END AS compliance_rate,
+        MAX(CASE WHEN wo.status = 'completed' THEN wo.completed_at END) AS last_completed,
+        MIN(ps.next_due) AS next_due
+      FROM preventive_schedules ps
+      JOIN assets a ON ps.asset_id = a.id
+      LEFT JOIN properties p ON a.property_id = p.id
+      LEFT JOIN work_orders wo ON wo.preventive_schedule_id = ps.id
+      WHERE ps.asset_id IS NOT NULL
+      GROUP BY a.id
+      ORDER BY compliance_rate ASC
+    `).all();
+
+    // Cost per PM cycle
+    const cost_analysis = db.prepare(`
+      SELECT ps.id, ps.title,
+        COUNT(wo.id) AS cycles,
+        COALESCE(SUM(tl.total_hours), 0) AS total_hours,
+        COALESCE(SUM(wop.total_parts_cost), 0) AS total_parts_cost
+      FROM preventive_schedules ps
+      LEFT JOIN work_orders wo ON wo.preventive_schedule_id = ps.id AND wo.status = 'completed'
+      LEFT JOIN (SELECT work_order_id, SUM(hours) AS total_hours FROM time_logs GROUP BY work_order_id) tl ON tl.work_order_id = wo.id
+      LEFT JOIN (SELECT work_order_id, SUM(quantity_used * unit_cost) AS total_parts_cost FROM work_order_parts GROUP BY work_order_id) wop ON wop.work_order_id = wo.id
+      GROUP BY ps.id
+      ORDER BY total_parts_cost DESC
+    `).all();
+
     res.json({
       total_schedules,
       active_schedules,
       compliance_rate,
       overdue_count,
-      by_frequency: byFrequency
+      by_frequency: byFrequency,
+      asset_compliance,
+      cost_analysis
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch preventive reports', details: err.message });
