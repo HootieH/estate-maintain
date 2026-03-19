@@ -315,8 +315,11 @@ const Assets = {
             `}
           </div>
         </div>
+
+        ${Attachments.placeholder('asset', params.id)}
       `;
       lucide.createIcons();
+      Attachments.load('asset', params.id);
     } catch (e) {
       container.innerHTML = `<div class="error-state"><p>${e.message}</p></div>`;
     }

@@ -193,8 +193,11 @@ const Invoices = {
             </div>
           </div>
         </div>
+
+        ${Attachments.placeholder('invoice', params.id)}
       `;
       lucide.createIcons();
+      Attachments.load('invoice', params.id);
     } catch (e) {
       container.innerHTML = `<div class="error-state"><p>${e.message}</p></div>`;
     }

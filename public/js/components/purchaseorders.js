@@ -295,8 +295,11 @@ const PurchaseOrders = {
             </table>
           </div>
         </div>
+
+        ${Attachments.placeholder('purchase_order', params.id)}
       `;
       lucide.createIcons();
+      Attachments.load('purchase_order', params.id);
     } catch (e) {
       container.innerHTML = `<div class="error-state"><p>${e.message}</p></div>`;
     }

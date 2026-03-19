@@ -319,8 +319,11 @@ const Parts = {
             ` : '<div class="empty-state-sm">No adjustment history</div>'}
           </div>
         </div>
+
+        ${Attachments.placeholder('part', params.id)}
       `;
       lucide.createIcons();
+      Attachments.load('part', params.id);
     } catch (e) {
       container.innerHTML = `<div class="error-state"><p>${e.message}</p></div>`;
     }

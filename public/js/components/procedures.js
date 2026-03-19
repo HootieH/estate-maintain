@@ -181,8 +181,11 @@ const Procedures = {
             `}
           </div>
         </div>
+
+        ${Attachments.placeholder('procedure', params.id)}
       `;
       lucide.createIcons();
+      Attachments.load('procedure', params.id);
     } catch (e) {
       container.innerHTML = `<div class="error-state"><p>${e.message}</p></div>`;
     }

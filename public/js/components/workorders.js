@@ -392,8 +392,11 @@ const WorkOrders = {
             ` : '<div class="empty-state-sm">No parts used yet</div>'}
           </div>
         </div>
+
+        ${Attachments.placeholder('work_order', params.id)}
       `;
       lucide.createIcons();
+      Attachments.load('work_order', params.id);
 
       // Load time logs
       WorkOrders.loadTimeLogs(params.id);

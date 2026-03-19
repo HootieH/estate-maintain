@@ -275,6 +275,8 @@ const Properties = {
               </div>
             </div>
           </div>
+
+          ${Attachments.placeholder('property', params.id)}
         </div>
 
         <!-- Assets Tab -->
@@ -414,6 +416,7 @@ const Properties = {
       Properties._currentPropertyId = params.id;
       Properties._flatLocations = flatLocations;
       lucide.createIcons();
+      Attachments.load('property', params.id);
     } catch (e) {
       container.innerHTML = `<div class="error-state"><p>${e.message}</p></div>`;
     }

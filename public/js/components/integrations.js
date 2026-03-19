@@ -149,6 +149,81 @@ const Integrations = {
     `;
   },
 
+  renderDriveCard(status) {
+    const connected = status && status.connected;
+    return `
+      <div class="card integration-card">
+        <div class="card-body">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+            <div style="width:48px;height:48px;border-radius:12px;background:#4285F4;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:14px">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
+            </div>
+            <div>
+              <strong style="font-size:16px">Google Drive</strong>
+              <div style="font-size:12px;color:${connected ? 'var(--success)' : 'var(--text-muted)'}">
+                <i data-lucide="${connected ? 'check-circle' : 'circle'}" style="width:12px;height:12px;vertical-align:middle"></i>
+                ${connected ? 'Connected' : 'Not connected'}
+              </div>
+            </div>
+          </div>
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Store photos, PDFs, and documents organized by property and entity. Files live in Google Drive — accessible anywhere.</p>
+          ${!connected ? `
+            <div style="margin-bottom:12px">
+              <div class="form-group" style="margin-bottom:8px">
+                <label style="font-size:12px">Client ID</label>
+                <input type="text" id="gdrive-client-id" class="form-control" placeholder="Google Cloud OAuth Client ID">
+              </div>
+              <div class="form-group" style="margin-bottom:8px">
+                <label style="font-size:12px">Client Secret</label>
+                <input type="password" id="gdrive-client-secret" class="form-control" placeholder="Client Secret">
+              </div>
+              <div class="form-group" style="margin-bottom:8px">
+                <label style="font-size:12px">Redirect URI</label>
+                <input type="text" id="gdrive-redirect-uri" class="form-control" value="${window.location.origin}/api/integrations/google-drive/callback">
+              </div>
+              <div class="form-group" style="margin-bottom:12px">
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+                  <input type="checkbox" id="gdrive-shared-drive" checked> Use Shared Drive (recommended for teams)
+                </label>
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="Integrations.connectGoogleDrive()"><i data-lucide="link"></i> Save & Connect</button>
+            </div>
+          ` : `
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
+              ${status.connectedAt ? `Connected: ${Dashboard.formatDate(status.connectedAt)}` : ''}
+              ${status.useSharedDrive ? ' · Shared Drive' : ' · Personal Drive'}
+            </div>
+            <button class="btn btn-sm btn-danger" onclick="Integrations.disconnectGoogleDrive()"><i data-lucide="unplug"></i> Disconnect</button>
+          `}
+        </div>
+      </div>
+    `;
+  },
+
+  async connectGoogleDrive() {
+    try {
+      // Save config via API
+      await API.post('/integrations/google-drive/config', {
+        client_id: document.getElementById('gdrive-client-id').value,
+        client_secret: document.getElementById('gdrive-client-secret').value,
+        redirect_uri: document.getElementById('gdrive-redirect-uri').value,
+        use_shared_drive: document.getElementById('gdrive-shared-drive').checked ? 'true' : 'false'
+      });
+
+      const { url } = await API.get('/integrations/google-drive/auth');
+      window.location.href = url;
+    } catch (e) { App.toast(e.message, 'error'); }
+  },
+
+  async disconnectGoogleDrive() {
+    if (!confirm('Disconnect Google Drive? Existing files will remain in Drive but new uploads will not work.')) return;
+    try {
+      await API.post('/integrations/google-drive/disconnect');
+      App.toast('Google Drive disconnected', 'success');
+      this.render();
+    } catch (e) { App.toast(e.message, 'error'); }
+  },
+
   async connectBillcom() {
     try {
       await API.post('/integrations/billcom/config', {

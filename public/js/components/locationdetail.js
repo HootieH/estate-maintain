@@ -176,8 +176,11 @@ const LocationDetail = {
             </div>
           </div>
         ` : ''}
+
+        ${Attachments.placeholder('location', params.id)}
       `;
       lucide.createIcons();
+      Attachments.load('location', params.id);
     } catch (e) {
       container.innerHTML = `<div class="error-state"><p>${e.message}</p></div>`;
     }

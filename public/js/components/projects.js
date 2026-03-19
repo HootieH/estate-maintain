@@ -540,6 +540,8 @@ const Projects = {
             </div>
           </div>
         ` : ''}
+
+        ${Attachments.placeholder('project', params.id)}
       `;
 
       // Lazy-load comparison data into the inline tab
@@ -548,6 +550,7 @@ const Projects = {
       }
 
       lucide.createIcons();
+      Attachments.load('project', params.id);
     } catch (e) {
       container.innerHTML = `<div class="error-state"><p>${e.message}</p></div>`;
     }
