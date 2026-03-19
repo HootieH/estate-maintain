@@ -38,7 +38,7 @@ const UserDetail = {
             <div>
               <h1 style="margin:0">${user.name || user.email}</h1>
               <div style="display:flex;gap:8px;margin-top:4px">
-                <span class="role-badge role-${user.role || 'technician'}">${user.role || 'technician'}</span>
+                ${user.is_owner ? '<span class="god-badge">god mode</span>' : `<span class="role-badge role-${user.role || 'technician'}">${user.role || 'technician'}</span>`}
                 <span class="status-badge status-${user.status || 'active'}">${user.status || 'active'}</span>
               </div>
             </div>
@@ -63,6 +63,11 @@ const UserDetail = {
               <button class="btn btn-danger" onclick="UserDetail.deactivate('${params.id}')">
                 <i data-lucide="user-x"></i> Deactivate
               </button>
+              ${API.getUser()?.is_owner ? `
+                <button class="btn ${user.is_owner ? 'btn-secondary' : 'btn-god'}" onclick="UserDetail.toggleGodMode('${params.id}')">
+                  <i data-lucide="zap"></i> ${user.is_owner ? 'Revoke God Mode' : 'Grant God Mode'}
+                </button>
+              ` : ''}
             </div>
           ` : ''}
         </div>
@@ -553,6 +558,25 @@ const UserDetail = {
     try {
       await API.put('/users/' + userId, { status: 'deactivated' });
       App.toast('User deactivated', 'success');
+      this.render({ id: userId });
+    } catch (e) {
+      App.toast(e.message, 'error');
+    }
+  },
+
+  async toggleGodMode(userId) {
+    const user = this._user;
+    const action = user && user.is_owner ? 'revoke' : 'grant';
+    if (!confirm(`${action === 'grant' ? 'Grant' : 'Revoke'} god mode for ${user ? user.name : 'this user'}? This gives full cross-estate system access.`)) return;
+    try {
+      await API.post(`/users/${userId}/god-mode`);
+      App.toast(`God mode ${action === 'grant' ? 'granted' : 'revoked'}`, 'success');
+      // Update cached user if it's ourselves
+      const me = API.getUser();
+      if (me && String(me.id) === String(userId)) {
+        me.is_owner = action === 'grant' ? 1 : 0;
+        API.setUser(me);
+      }
       this.render({ id: userId });
     } catch (e) {
       App.toast(e.message, 'error');

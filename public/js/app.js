@@ -379,9 +379,8 @@ const App = {
     const sectionMap = {
       workorders: 'work', requests: 'work', preventive: 'work', reviews: 'work',
       approvals: 'procurement',
-      properties: 'estate', assets: 'estate', procedures: 'estate',
-      parts: 'procurement', vendors: 'procurement', purchaseorders: 'procurement',
-      invoices: 'procurement', projects: 'procurement',
+      properties: 'estate', assets: 'estate', procedures: 'estate', parts: 'estate', projects: 'estate',
+      vendors: 'procurement', purchaseorders: 'procurement', approvals: 'procurement', invoices: 'procurement',
       users: 'admin', teams: 'admin', audit: 'admin', reports: 'admin', settings: 'admin', integrations: 'admin'
     };
     const section = sectionMap[route];
