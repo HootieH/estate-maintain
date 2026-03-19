@@ -89,6 +89,7 @@ const Router = {
       audit: 'Audit Log',
       reviews: 'Review Queue',
       approvals: 'Approvals',
+      locations: 'Locations',
       new: 'New'
     };
 

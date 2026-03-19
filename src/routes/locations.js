@@ -55,6 +55,29 @@ router.get('/:id', (req, res) => {
       }
     }
 
+    // Linked procedures
+    const procedures = db.prepare(`
+      SELECT p.id, p.title, p.description, p.category,
+        (SELECT COUNT(*) FROM procedure_steps WHERE procedure_id = p.id) AS step_count
+      FROM procedures p
+      JOIN location_procedures lp ON p.id = lp.procedure_id
+      WHERE lp.location_id = ?
+      ORDER BY p.title
+    `).all(req.params.id);
+    location.procedures = procedures;
+
+    // Recent work orders for assets at this location
+    const workOrders = db.prepare(`
+      SELECT wo.id, wo.title, wo.status, wo.priority, wo.due_date, wo.created_at,
+        a.name AS asset_name
+      FROM work_orders wo
+      JOIN assets a ON wo.asset_id = a.id
+      WHERE a.location_id = ?
+      ORDER BY wo.created_at DESC
+      LIMIT 10
+    `).all(req.params.id);
+    location.work_orders = workOrders;
+
     res.json({ ...location, children, assets, breadcrumb });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch location', details: err.message });
@@ -171,5 +194,51 @@ function buildTree(locations) {
 
   return roots;
 }
+
+// POST /:id/procedures - Link a procedure to a location
+router.post('/:id/procedures', authenticate, (req, res) => {
+  try {
+    const { procedure_id, notes } = req.body;
+    if (!procedure_id) return res.status(400).json({ error: 'procedure_id is required' });
+
+    const location = db.prepare('SELECT id FROM locations WHERE id = ?').get(req.params.id);
+    if (!location) return res.status(404).json({ error: 'Location not found' });
+
+    db.prepare('INSERT OR IGNORE INTO location_procedures (location_id, procedure_id, notes) VALUES (?, ?, ?)')
+      .run(req.params.id, procedure_id, notes || null);
+
+    res.status(201).json({ message: 'Procedure linked to location' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to link procedure', details: err.message });
+  }
+});
+
+// DELETE /:id/procedures/:procedureId - Unlink a procedure from a location
+router.delete('/:id/procedures/:procedureId', authenticate, (req, res) => {
+  try {
+    db.prepare('DELETE FROM location_procedures WHERE location_id = ? AND procedure_id = ?')
+      .run(req.params.id, req.params.procedureId);
+    res.json({ message: 'Procedure unlinked' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to unlink procedure', details: err.message });
+  }
+});
+
+// GET /:id/procedures - List procedures for a location
+router.get('/:id/procedures', (req, res) => {
+  try {
+    const procedures = db.prepare(`
+      SELECT p.*, lp.notes AS link_notes,
+        (SELECT COUNT(*) FROM procedure_steps WHERE procedure_id = p.id) AS step_count
+      FROM procedures p
+      JOIN location_procedures lp ON p.id = lp.procedure_id
+      WHERE lp.location_id = ?
+      ORDER BY p.title
+    `).all(req.params.id);
+    res.json(procedures);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch procedures', details: err.message });
+  }
+});
 
 module.exports = router;

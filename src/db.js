@@ -658,6 +658,15 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, team_id)
   );
+
+  CREATE TABLE IF NOT EXISTS location_procedures (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    location_id INTEGER NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
+    procedure_id INTEGER NOT NULL REFERENCES procedures(id) ON DELETE CASCADE,
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(location_id, procedure_id)
+  );
 `);
 
 // Migrations for existing databases

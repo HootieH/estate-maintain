@@ -422,7 +422,7 @@ const Properties = {
       <div class="location-tree-item" style="margin-left:${depth * 24}px;padding:8px 12px;border:1px solid var(--border-color);border-radius:6px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
         <div>
           ${depth > 0 ? '<span style="color:var(--text-muted);margin-right:4px;">&#8627;</span>' : ''}
-          <strong>${node.name}</strong>
+          <a href="#/locations/${node.id}" style="color:var(--text);text-decoration:none;font-weight:700" onclick="event.stopPropagation()">${node.name}</a>
           ${node.description ? `<span class="text-muted" style="margin-left:8px;">${node.description}</span>` : ''}
         </div>
         <div style="display:flex;gap:4px;">

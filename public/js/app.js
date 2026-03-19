@@ -43,6 +43,7 @@ const App = {
     Router.add('/projects', () => Projects.list());
     Router.add('/projects/new', () => Projects.form());
     Router.add('/projects/:id', (p) => Projects.detail(p));
+    Router.add('/locations/:id', (p) => LocationDetail.render(p));
     Router.add('/guide', () => Guide.render());
     Router.add('/users', () => UserManagement.list());
     Router.add('/users/:id', (p) => UserDetail.render(p));

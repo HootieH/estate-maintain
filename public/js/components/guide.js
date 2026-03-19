@@ -358,8 +358,8 @@ const Guide = {
           { icon: 'layers', text: 'For bulk printing, use <strong>Print QR Labels</strong> on the Assets or Parts list to print all codes at once — ready for label sheets' },
           { icon: 'scan-line', text: 'Stick QR labels on equipment, bins, and room doors. Program NFC tags with the same URL' },
           { icon: 'smartphone', text: 'Staff <strong>scan with any phone camera</strong> — it opens the item directly in Estate Maintain. No app needed.' },
-          { icon: 'wrench', text: 'From the scanned page: see last maintenance, log downtime, start a procedure, record a meter reading, or update inventory' },
-          { icon: 'clipboard-check', text: 'For rooms: scan the location QR to see linked <strong>procedures</strong> — tap to start the cleaning or setup checklist' }
+          { icon: 'wrench', text: 'From any scanned page: see maintenance history, log downtime, start a procedure, record meter readings, or update inventory — <strong>all from the item you\'re standing next to</strong>' },
+          { icon: 'door-open', text: 'For rooms: scan the <strong>location QR</strong> on the door to see linked procedures, assets in the room, and recent work orders. Tap a procedure to start the checklist.' }
         ]
       },
       {
