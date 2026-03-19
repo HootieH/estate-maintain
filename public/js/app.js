@@ -57,6 +57,7 @@ const App = {
     window.addEventListener('hashchange', () => {
       const section = (window.location.hash.slice(2) || 'dashboard').split('/')[0];
       this.trackSectionVisit(section);
+      this.expandSectionForRoute(section);
       // Inject banner after a short delay to let the route render
       setTimeout(() => {
         const container = document.getElementById('main-content');
@@ -131,6 +132,7 @@ const App = {
 
     // Initialize sidebar discovery indicators
     this.updateSidebarDiscovery();
+    this.initNavSections();
   },
 
   updateSidebarUser() {
@@ -181,8 +183,9 @@ const App = {
 
   updateSidebarDiscovery() {
     const visited = JSON.parse(localStorage.getItem('visited_sections') || '[]');
-    const allSections = ['dashboard','workorders','requests','properties','assets','preventive',
-                         'procedures','parts','vendors','purchaseorders','invoices','projects','messages','teams','reports','settings','integrations'];
+    const allSections = ['workorders','requests','preventive','properties','assets',
+                         'procedures','parts','vendors','purchaseorders','invoices',
+                         'projects','messages','teams','reports','settings','integrations'];
 
     document.querySelectorAll('.nav-item').forEach(item => {
       const route = item.dataset.route;
@@ -327,6 +330,50 @@ const App = {
       el.style.marginBottom = '0';
       el.style.padding = '0';
       setTimeout(() => el.remove(), 300);
+    }
+  },
+
+  toggleNavSection(section) {
+    const el = document.querySelector(`.nav-section[data-section="${section}"]`);
+    if (!el) return;
+    el.classList.toggle('collapsed');
+
+    // Save state
+    const collapsed = JSON.parse(localStorage.getItem('nav_collapsed') || '[]');
+    if (el.classList.contains('collapsed')) {
+      if (!collapsed.includes(section)) collapsed.push(section);
+    } else {
+      const idx = collapsed.indexOf(section);
+      if (idx > -1) collapsed.splice(idx, 1);
+    }
+    localStorage.setItem('nav_collapsed', JSON.stringify(collapsed));
+  },
+
+  initNavSections() {
+    const collapsed = JSON.parse(localStorage.getItem('nav_collapsed') || '[]');
+    collapsed.forEach(section => {
+      const el = document.querySelector(`.nav-section[data-section="${section}"]`);
+      if (el) el.classList.add('collapsed');
+    });
+
+    // Auto-expand section containing the active route
+    const hash = window.location.hash.slice(2) || 'dashboard';
+    const route = hash.split('/')[0];
+    this.expandSectionForRoute(route);
+  },
+
+  expandSectionForRoute(route) {
+    const sectionMap = {
+      workorders: 'work', requests: 'work', preventive: 'work',
+      properties: 'estate', assets: 'estate', procedures: 'estate',
+      parts: 'procurement', vendors: 'procurement', purchaseorders: 'procurement',
+      invoices: 'procurement', projects: 'procurement',
+      teams: 'admin', reports: 'admin', settings: 'admin', integrations: 'admin'
+    };
+    const section = sectionMap[route];
+    if (section) {
+      const el = document.querySelector(`.nav-section[data-section="${section}"]`);
+      if (el) el.classList.remove('collapsed');
     }
   },
 

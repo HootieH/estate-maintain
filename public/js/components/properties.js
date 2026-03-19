@@ -757,13 +757,62 @@ const Properties = {
   },
 
   async remove(id) {
-    if (!confirm('Are you sure you want to delete this property? This action cannot be undone.')) return;
+    // Fetch impact summary first
+    try {
+      const summary = await API.get(`/properties/${id}/summary`);
+
+      const items = [];
+      if (summary.assets) items.push(`${summary.assets} asset${summary.assets !== 1 ? 's' : ''}`);
+      if (summary.work_orders) items.push(`${summary.work_orders} work order${summary.work_orders !== 1 ? 's' : ''}`);
+      if (summary.preventive_schedules) items.push(`${summary.preventive_schedules} PM schedule${summary.preventive_schedules !== 1 ? 's' : ''}`);
+      if (summary.work_requests) items.push(`${summary.work_requests} work request${summary.work_requests !== 1 ? 's' : ''}`);
+      if (summary.locations) items.push(`${summary.locations} location${summary.locations !== 1 ? 's' : ''}`);
+      if (summary.parts) items.push(`${summary.parts} part${summary.parts !== 1 ? 's' : ''}`);
+
+      const modal = document.getElementById('modal-overlay');
+      modal.querySelector('.modal-title').textContent = 'Delete Property';
+      modal.querySelector('.modal-body').innerHTML = `
+        <div style="text-align:center;padding:8px 0">
+          <div style="width:48px;height:48px;background:#FEE2E2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+            <i data-lucide="alert-triangle" style="color:#DC2626;width:24px;height:24px"></i>
+          </div>
+          <h3 style="margin-bottom:8px">Delete "${summary.property}"?</h3>
+          <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:16px">This action cannot be undone.</p>
+          ${items.length > 0 ? `
+            <div style="background:var(--bg);border-radius:8px;padding:12px 16px;text-align:left;margin-bottom:16px">
+              <p style="font-size:0.8rem;font-weight:600;color:var(--text-muted);margin-bottom:8px">The following will be permanently deleted:</p>
+              <ul style="list-style:none;font-size:0.85rem;display:flex;flex-direction:column;gap:4px">
+                ${items.map(item => `<li style="display:flex;align-items:center;gap:6px"><i data-lucide="x" style="width:14px;height:14px;color:#EF4444;flex-shrink:0"></i> ${item}</li>`).join('')}
+              </ul>
+            </div>
+          ` : ''}
+          <p style="font-size:0.8rem;color:var(--text-muted)">Purchase orders and projects linked to this property will be preserved but unlinked.</p>
+        </div>
+      `;
+      modal.querySelector('.modal-footer').innerHTML = `
+        <button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
+        <button class="btn btn-danger" id="confirm-delete-btn" onclick="Properties.confirmDelete('${id}')">
+          <i data-lucide="trash-2"></i> Delete Property
+        </button>
+      `;
+      modal.style.display = 'flex';
+      lucide.createIcons();
+    } catch (e) {
+      App.toast(e.message, 'error');
+    }
+  },
+
+  async confirmDelete(id) {
+    const btn = document.getElementById('confirm-delete-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Deleting...'; }
     try {
       await API.delete(`/properties/${id}`);
+      App.closeModal();
       App.toast('Property deleted', 'success');
       Router.navigate('#/properties');
     } catch (e) {
       App.toast(e.message, 'error');
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="trash-2"></i> Delete Property'; lucide.createIcons(); }
     }
   }
 };

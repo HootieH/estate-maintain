@@ -25,92 +25,111 @@
             <i data-lucide="layout-dashboard"></i>
             <span>Dashboard</span>
           </a>
-          <a href="#/workorders" class="nav-item" data-route="workorders" data-permission="workorders:view">
-            <i data-lucide="clipboard-list"></i>
-            <span>Work Orders</span>
-          </a>
-          <a href="#/reviews" class="nav-item" data-route="reviews" data-permission="workorders:review">
-            <i data-lucide="check-square"></i>
-            <span>Review Queue</span>
-            <span class="nav-badge" id="reviews-pending-badge" style="display:none"></span>
-          </a>
-          <a href="#/requests" class="nav-item" data-route="requests" data-permission="requests:view">
-            <i data-lucide="inbox"></i>
-            <span>Work Requests</span>
-            <span class="nav-badge" id="requests-pending-badge" style="display:none"></span>
-          </a>
-          <a href="#/approvals" class="nav-item" data-route="approvals" data-permission="approvals:view">
-            <i data-lucide="shield-check"></i>
-            <span>Approvals</span>
-            <span class="nav-badge" id="approvals-pending-badge" style="display:none"></span>
-          </a>
-          <a href="#/properties" class="nav-item" data-route="properties" data-permission="properties:view">
-            <i data-lucide="building-2"></i>
-            <span>Properties</span>
-          </a>
-          <a href="#/assets" class="nav-item" data-route="assets" data-permission="assets:view">
-            <i data-lucide="wrench"></i>
-            <span>Assets</span>
-          </a>
-          <a href="#/preventive" class="nav-item" data-route="preventive" data-permission="preventive:view">
-            <i data-lucide="calendar-clock"></i>
-            <span>Preventive Maintenance</span>
-          </a>
-          <a href="#/procedures" class="nav-item" data-route="procedures" data-permission="procedures:view">
-            <i data-lucide="clipboard-check"></i>
-            <span>Procedures</span>
-          </a>
-          <a href="#/parts" class="nav-item" data-route="parts" data-permission="parts:view">
-            <i data-lucide="package"></i>
-            <span>Parts & Inventory</span>
-          </a>
-          <a href="#/vendors" class="nav-item" data-route="vendors" data-permission="vendors:view">
-            <i data-lucide="truck"></i>
-            <span>Vendors</span>
-          </a>
-          <a href="#/purchaseorders" class="nav-item" data-route="purchaseorders" data-permission="purchaseorders:view">
-            <i data-lucide="shopping-cart"></i>
-            <span>Purchase Orders</span>
-          </a>
-          <a href="#/invoices" class="nav-item" data-route="invoices" data-permission="invoices:view">
-            <i data-lucide="receipt"></i>
-            <span>Invoices</span>
-          </a>
-          <a href="#/projects" class="nav-item" data-route="projects" data-permission="projects:view">
-            <i data-lucide="briefcase"></i>
-            <span>Projects & Bids</span>
-          </a>
-          <a href="#/messages" class="nav-item" data-route="messages" data-permission="messages:view">
+
+          <div class="nav-section" data-section="work">
+            <button class="nav-section-header" onclick="App.toggleNavSection('work')">
+              <span>Work</span>
+              <i data-lucide="chevron-down" class="nav-section-chevron"></i>
+            </button>
+            <div class="nav-section-items">
+              <a href="#/workorders" class="nav-item" data-route="workorders">
+                <i data-lucide="clipboard-list"></i>
+                <span>Work Orders</span>
+              </a>
+              <a href="#/requests" class="nav-item" data-route="requests">
+                <i data-lucide="inbox"></i>
+                <span>Requests</span>
+                <span class="nav-badge" id="requests-pending-badge" style="display:none"></span>
+              </a>
+              <a href="#/preventive" class="nav-item" data-route="preventive">
+                <i data-lucide="calendar-clock"></i>
+                <span>Maintenance</span>
+              </a>
+            </div>
+          </div>
+
+          <div class="nav-section" data-section="estate">
+            <button class="nav-section-header" onclick="App.toggleNavSection('estate')">
+              <span>Estate</span>
+              <i data-lucide="chevron-down" class="nav-section-chevron"></i>
+            </button>
+            <div class="nav-section-items">
+              <a href="#/properties" class="nav-item" data-route="properties">
+                <i data-lucide="building-2"></i>
+                <span>Properties</span>
+              </a>
+              <a href="#/assets" class="nav-item" data-route="assets">
+                <i data-lucide="wrench"></i>
+                <span>Assets</span>
+              </a>
+              <a href="#/procedures" class="nav-item" data-route="procedures">
+                <i data-lucide="clipboard-check"></i>
+                <span>Procedures</span>
+              </a>
+            </div>
+          </div>
+
+          <div class="nav-section" data-section="procurement">
+            <button class="nav-section-header" onclick="App.toggleNavSection('procurement')">
+              <span>Procurement</span>
+              <i data-lucide="chevron-down" class="nav-section-chevron"></i>
+            </button>
+            <div class="nav-section-items">
+              <a href="#/parts" class="nav-item" data-route="parts">
+                <i data-lucide="package"></i>
+                <span>Inventory</span>
+              </a>
+              <a href="#/vendors" class="nav-item" data-route="vendors">
+                <i data-lucide="truck"></i>
+                <span>Vendors</span>
+              </a>
+              <a href="#/purchaseorders" class="nav-item" data-route="purchaseorders">
+                <i data-lucide="shopping-cart"></i>
+                <span>Purchase Orders</span>
+              </a>
+              <a href="#/invoices" class="nav-item" data-route="invoices">
+                <i data-lucide="receipt"></i>
+                <span>Invoices</span>
+              </a>
+              <a href="#/projects" class="nav-item" data-route="projects">
+                <i data-lucide="briefcase"></i>
+                <span>Projects</span>
+              </a>
+            </div>
+          </div>
+
+          <a href="#/messages" class="nav-item" data-route="messages">
             <i data-lucide="message-circle"></i>
             <span>Messages</span>
             <span class="nav-badge" id="messages-unread-badge" style="display:none"></span>
           </a>
-          <div class="nav-section-label">Administration</div>
-          <a href="#/users" class="nav-item" data-route="users" data-permission="users:view">
-            <i data-lucide="user-cog"></i>
-            <span>User Management</span>
-          </a>
-          <a href="#/teams" class="nav-item" data-route="teams" data-permission="teams:view">
-            <i data-lucide="users"></i>
-            <span>Teams</span>
-          </a>
-          <a href="#/audit" class="nav-item" data-route="audit" data-permission="audit_log:view">
-            <i data-lucide="scroll-text"></i>
-            <span>Audit Log</span>
-          </a>
-          <a href="#/reports" class="nav-item" data-route="reports" data-permission="reports:view">
-            <i data-lucide="bar-chart-3"></i>
-            <span>Reports</span>
-          </a>
-          <a href="#/settings" class="nav-item" data-route="settings" data-permission="settings:view">
-            <i data-lucide="settings"></i>
-            <span>Settings</span>
-          </a>
-          <a href="#/integrations" class="nav-item" data-route="integrations" data-permission="integrations:view">
-            <i data-lucide="plug-zap"></i>
-            <span>Integrations</span>
-          </a>
-          <a href="#/guide" class="nav-item" data-route="guide">
+
+          <div class="nav-section" data-section="admin">
+            <button class="nav-section-header" onclick="App.toggleNavSection('admin')">
+              <span>Admin</span>
+              <i data-lucide="chevron-down" class="nav-section-chevron"></i>
+            </button>
+            <div class="nav-section-items">
+              <a href="#/teams" class="nav-item" data-route="teams">
+                <i data-lucide="users"></i>
+                <span>Teams</span>
+              </a>
+              <a href="#/reports" class="nav-item" data-route="reports">
+                <i data-lucide="bar-chart-3"></i>
+                <span>Reports</span>
+              </a>
+              <a href="#/settings" class="nav-item" data-route="settings">
+                <i data-lucide="settings"></i>
+                <span>Settings</span>
+              </a>
+              <a href="#/integrations" class="nav-item" data-route="integrations">
+                <i data-lucide="plug-zap"></i>
+                <span>Integrations</span>
+              </a>
+            </div>
+          </div>
+
+          <a href="#/guide" class="nav-item nav-item-help" data-route="guide">
             <i data-lucide="book-open"></i>
             <span>How It Works</span>
           </a>

@@ -2775,3 +2775,69 @@ h1 .tip-badge-icon {
   gap: 6px;
   flex-shrink: 0;
 }
+
+/* ============================================
+   Sidebar Section Groups
+   ============================================ */
+
+.nav-section {
+  margin-bottom: 2px;
+}
+
+.nav-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 14px;
+  background: none;
+  border: none;
+  color: #64748B;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  transition: color 0.15s;
+  font-family: inherit;
+  margin-top: 8px;
+}
+
+.nav-section-header:hover {
+  color: #94A3B8;
+}
+
+.nav-section-chevron {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.2s;
+}
+
+.nav-section.collapsed .nav-section-chevron {
+  transform: rotate(-90deg);
+}
+
+.nav-section-items {
+  overflow: hidden;
+  max-height: 500px;
+  transition: max-height 0.25s ease, opacity 0.2s ease;
+  opacity: 1;
+}
+
+.nav-section.collapsed .nav-section-items {
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.nav-item-help {
+  margin-top: auto;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding-top: 10px;
+}
+
+/* Adjust sidebar-nav to push help to bottom */
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+}

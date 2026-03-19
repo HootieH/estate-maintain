@@ -282,16 +282,94 @@ router.put('/:id', requireRole('admin', 'manager'), (req, res) => {
   }
 });
 
+// GET /:id/summary — pre-delete summary of what will be removed
+router.get('/:id/summary', requireRole('admin', 'manager'), (req, res) => {
+  try {
+    const id = req.params.id;
+    const property = db.prepare('SELECT id, name FROM properties WHERE id = ?').get(id);
+    if (!property) return res.status(404).json({ error: 'Property not found' });
+
+    res.json({
+      property: property.name,
+      assets: db.prepare('SELECT COUNT(*) as c FROM assets WHERE property_id = ?').get(id).c,
+      work_orders: db.prepare('SELECT COUNT(*) as c FROM work_orders WHERE property_id = ?').get(id).c,
+      preventive_schedules: db.prepare('SELECT COUNT(*) as c FROM preventive_schedules WHERE property_id = ?').get(id).c,
+      work_requests: db.prepare('SELECT COUNT(*) as c FROM work_requests WHERE property_id = ?').get(id).c,
+      locations: db.prepare('SELECT COUNT(*) as c FROM locations WHERE property_id = ?').get(id).c,
+      parts: db.prepare('SELECT COUNT(*) as c FROM parts WHERE property_id = ?').get(id).c,
+      purchase_orders: db.prepare('SELECT COUNT(*) as c FROM purchase_orders WHERE property_id = ?').get(id).c,
+      projects: db.prepare('SELECT COUNT(*) as c FROM projects WHERE property_id = ?').get(id).c,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get summary', details: err.message });
+  }
+});
+
 // DELETE /:id
 router.delete('/:id', requireRole('admin', 'manager'), (req, res) => {
   try {
-    const existing = db.prepare('SELECT * FROM properties WHERE id = ?').get(req.params.id);
+    const id = req.params.id;
+    const existing = db.prepare('SELECT * FROM properties WHERE id = ?').get(id);
     if (!existing) {
       return res.status(404).json({ error: 'Property not found' });
     }
 
-    db.prepare('DELETE FROM properties WHERE id = ?').run(req.params.id);
-    logActivity('property', parseInt(req.params.id), 'deleted', `Property "${existing.name}" deleted`, req.user.id);
+    // Delete in dependency order within a transaction
+    const deleteAll = db.transaction(() => {
+      // Nullify work_request -> work_order FK before deleting work orders
+      db.prepare('UPDATE work_requests SET work_order_id = NULL WHERE property_id = ?').run(id);
+
+      // Work order related (deepest children first)
+      const woIds = db.prepare('SELECT id FROM work_orders WHERE property_id = ?').all(id).map(r => r.id);
+      if (woIds.length > 0) {
+        const ph = woIds.map(() => '?').join(',');
+        db.prepare(`DELETE FROM work_order_comments WHERE work_order_id IN (${ph})`).run(...woIds);
+        db.prepare(`DELETE FROM work_order_parts WHERE work_order_id IN (${ph})`).run(...woIds);
+        db.prepare(`DELETE FROM time_logs WHERE work_order_id IN (${ph})`).run(...woIds);
+        db.prepare(`DELETE FROM procedure_responses WHERE work_order_procedure_id IN (SELECT id FROM work_order_procedures WHERE work_order_id IN (${ph}))`).run(...woIds);
+        db.prepare(`DELETE FROM work_order_procedures WHERE work_order_id IN (${ph})`).run(...woIds);
+        db.prepare(`DELETE FROM work_order_reviews WHERE work_order_id IN (${ph})`).run(...woIds);
+        db.prepare(`DELETE FROM asset_downtime WHERE work_order_id IN (${ph})`).run(...woIds);
+        db.prepare(`DELETE FROM entity_tags WHERE entity_type = 'work_order' AND entity_id IN (${ph})`).run(...woIds);
+        db.prepare(`DELETE FROM favorites WHERE entity_type = 'work_order' AND entity_id IN (${ph})`).run(...woIds);
+      }
+      db.prepare('DELETE FROM work_orders WHERE property_id = ?').run(id);
+
+      // Assets and their children
+      const assetIds = db.prepare('SELECT id FROM assets WHERE property_id = ?').all(id).map(r => r.id);
+      if (assetIds.length > 0) {
+        const ph = assetIds.map(() => '?').join(',');
+        db.prepare(`DELETE FROM meter_readings WHERE meter_id IN (SELECT id FROM meters WHERE asset_id IN (${ph}))`).run(...assetIds);
+        db.prepare(`DELETE FROM meter_triggers WHERE meter_id IN (SELECT id FROM meters WHERE asset_id IN (${ph}))`).run(...assetIds);
+        db.prepare(`DELETE FROM meters WHERE asset_id IN (${ph})`).run(...assetIds);
+        db.prepare(`DELETE FROM asset_downtime WHERE asset_id IN (${ph})`).run(...assetIds);
+        db.prepare(`DELETE FROM entity_tags WHERE entity_type = 'asset' AND entity_id IN (${ph})`).run(...assetIds);
+        db.prepare(`DELETE FROM favorites WHERE entity_type = 'asset' AND entity_id IN (${ph})`).run(...assetIds);
+      }
+      db.prepare('DELETE FROM assets WHERE property_id = ?').run(id);
+
+      // Other direct children
+      db.prepare('DELETE FROM locations WHERE property_id = ?').run(id);
+      db.prepare('DELETE FROM preventive_schedules WHERE property_id = ?').run(id);
+      db.prepare('DELETE FROM work_requests WHERE property_id = ?').run(id);
+      db.prepare('DELETE FROM parts WHERE property_id = ?').run(id);
+      db.prepare('DELETE FROM user_property_access WHERE property_id = ?').run(id);
+
+      // Nullify references (don't cascade-delete POs/projects/invoices — they have vendor relationships)
+      db.prepare('UPDATE purchase_orders SET property_id = NULL WHERE property_id = ?').run(id);
+      db.prepare('UPDATE projects SET property_id = NULL WHERE property_id = ?').run(id);
+      db.prepare('UPDATE work_order_templates SET property_id = NULL WHERE property_id = ?').run(id);
+
+      // Clean up tags/favorites/activity for this property
+      db.prepare("DELETE FROM entity_tags WHERE entity_type = 'property' AND entity_id = ?").run(id);
+      db.prepare("DELETE FROM favorites WHERE entity_type = 'property' AND entity_id = ?").run(id);
+
+      // Delete the property
+      db.prepare('DELETE FROM properties WHERE id = ?').run(id);
+    });
+
+    deleteAll();
+    logActivity('property', parseInt(id), 'deleted', `Property "${existing.name}" and all related data deleted`, req.user.id);
 
     res.json({ message: 'Property deleted' });
   } catch (err) {
