@@ -1857,6 +1857,56 @@ textarea.form-control {
   gap: 6px;
 }
 
+.step-notes-section {
+  margin-top: 6px;
+}
+
+.step-notes-section textarea {
+  max-width: 350px;
+  font-size: 0.85rem;
+}
+
+.step-out-of-range {
+  border-color: #e67e22 !important;
+  background-color: #fef9e7 !important;
+  box-shadow: 0 0 0 2px rgba(230, 126, 34, 0.2);
+}
+
+.step-range-indicator {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.step-range-warning {
+  color: #e67e22;
+}
+
+.step-range-warning-text {
+  font-size: 0.8rem;
+  color: #e67e22;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.step-builder-range {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.step-add-details-link {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.step-add-details-link:hover {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
 .text-danger {
   color: var(--danger);
 }

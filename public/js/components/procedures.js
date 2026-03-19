@@ -598,7 +598,7 @@ const Procedures = {
               <i data-lucide="x"></i> Fail
             </button>
           </div>
-          <div class="step-notes-section" id="step-notes-section-${step.id}" style="${val === 'fail' ? '' : 'display:none;'}">
+          <div class="step-notes-section" id="step-notes-section-${step.id}" style="${val === 'fail' || step.response_notes ? '' : 'display:none;'}">
             <textarea class="form-control form-control-sm" id="step-notes-${step.id}" rows="2" placeholder="${val === 'fail' ? 'Failure notes (required)...' : 'Add notes (optional)...'}">${step.response_notes || ''}</textarea>
             <button class="btn btn-secondary btn-sm" style="margin-top: 4px;" onclick="Procedures.saveStepNotes(${wopId}, ${step.id}, '${workOrderId}')">Save Notes</button>
           </div>
@@ -684,11 +684,20 @@ const Procedures = {
     const notesInput = document.getElementById(`step-notes-${stepId}`);
     const notes = notesInput ? notesInput.value.trim() : '';
     try {
-      // Re-submit the current value with updated notes
+      // Fetch current procedures to find the existing response value
+      const wops = await API.get(`/procedures/workorder/${workOrderId}`);
+      let existingValue = null;
+      for (const wop of wops) {
+        if (wop.id === wopId) {
+          const step = (wop.steps || []).find(s => s.id === stepId);
+          if (step) existingValue = step.response_value;
+          break;
+        }
+      }
       await API.post('/procedures/respond', {
         work_order_procedure_id: wopId,
         procedure_step_id: stepId,
-        value: null, // will be overridden by existing value on re-render
+        value: existingValue,
         notes: notes || null
       });
       App.toast('Notes saved', 'success');
