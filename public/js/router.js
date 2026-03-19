@@ -85,6 +85,10 @@ const Router = {
       invoices: 'Invoices',
       projects: 'Projects & Bids',
       integrations: 'Integrations',
+      users: 'User Management',
+      audit: 'Audit Log',
+      reviews: 'Review Queue',
+      approvals: 'Approvals',
       new: 'New'
     };
 

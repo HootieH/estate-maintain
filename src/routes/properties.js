@@ -1,6 +1,7 @@
 const express = require('express');
 const { db, logActivity } = require('../db');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { grantPropertyAccess, getPropertyScope } = require('../middleware/permissions');
 
 const router = express.Router();
 
@@ -17,6 +18,16 @@ router.get('/', (req, res) => {
     `;
     const conditions = [];
     const params = [];
+
+    // Property scoping — users only see properties they have access to
+    const scope = getPropertyScope(req.user.id);
+    if (scope !== null) {
+      if (scope.length === 0) {
+        return res.json({ data: [], total: 0, page: 1, limit: 25 });
+      }
+      conditions.push(`p.id IN (${scope.map(() => '?').join(',')})`);
+      params.push(...scope);
+    }
 
     if (req.query.team_id) {
       conditions.push('p.team_id = ?');
@@ -196,7 +207,8 @@ router.get('/:id', (req, res) => {
     if (property.team_id) {
       const members = db.prepare(`
         SELECT u.id, u.name, u.role, u.avatar_color, u.email
-        FROM users u WHERE u.team_id = ? AND u.is_active = 1
+        FROM users u JOIN user_teams ut ON u.id = ut.user_id
+        WHERE ut.team_id = ? AND u.is_active = 1
         ORDER BY u.name
       `).all(property.team_id);
       property.team_members = members;
@@ -224,6 +236,10 @@ router.post('/', requireRole('admin', 'manager'), (req, res) => {
     ).run(name, address || null, type || 'estate', notes || null, team_id || null, image_url || null, year_built || null, square_footage || null);
 
     const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(result.lastInsertRowid);
+
+    // Auto-grant property access to the creator
+    grantPropertyAccess(req.user.id, property.id, req.user.id);
+
     logActivity('property', property.id, 'created', `Property "${name}" created`, req.user.id);
 
     res.status(201).json(property);

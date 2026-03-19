@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Accept Invitation - Estatecraft</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+  <div class="invite-container">
+    <div class="invite-card">
+      <!-- Loading state -->
+      <div id="invite-loading" class="loading" style="padding: 32px 0;">
+        <div class="spinner"></div>
+        <span>Validating invitation...</span>
+      </div>
+
+      <!-- Invite form -->
+      <div id="invite-form-section" style="display:none">
+        <div class="invite-brand">
+          <i data-lucide="home" style="width:40px;height:40px;color:var(--primary);margin-bottom:12px;display:inline-block;"></i>
+          <h1>Estatecraft</h1>
+          <p>You've been invited</p>
+        </div>
+        <form id="invite-form" onsubmit="handleAccept(event)">
+          <div class="form-group">
+            <label for="invite-email">Email</label>
+            <input type="email" id="invite-email" class="form-control" readonly>
+          </div>
+          <div class="form-group">
+            <label for="invite-name">Full Name</label>
+            <input type="text" id="invite-name" class="form-control" placeholder="Your full name" required autofocus>
+          </div>
+          <div class="form-group">
+            <label for="invite-password">Password</label>
+            <input type="password" id="invite-password" class="form-control" placeholder="Min 6 characters" required minlength="6">
+          </div>
+          <div class="form-group">
+            <label for="invite-confirm">Confirm Password</label>
+            <input type="password" id="invite-confirm" class="form-control" placeholder="Confirm your password" required minlength="6">
+          </div>
+          <div id="invite-error" class="form-error" style="display:none"></div>
+          <button type="submit" class="btn btn-primary btn-block" id="invite-submit">Create Account</button>
+        </form>
+      </div>
+
+      <!-- Success state -->
+      <div id="invite-success" style="display:none">
+        <div class="invite-brand">
+          <i data-lucide="home" style="width:40px;height:40px;color:var(--primary);margin-bottom:12px;display:inline-block;"></i>
+          <h1>Estatecraft</h1>
+        </div>
+        <div class="invite-success">
+          <i data-lucide="check-circle"></i>
+          <h2 style="font-size:1.25rem;margin-bottom:6px;color:var(--text);">Account Created</h2>
+          <p style="color:var(--text-muted);font-size:0.9rem;">Redirecting you to the app...</p>
+        </div>
+      </div>
+
+      <!-- Error state -->
+      <div id="invite-error-state" style="display:none">
+        <div class="invite-brand">
+          <i data-lucide="home" style="width:40px;height:40px;color:var(--primary);margin-bottom:12px;display:inline-block;"></i>
+          <h1>Estatecraft</h1>
+        </div>
+        <div class="invite-error">
+          <i data-lucide="x-circle"></i>
+          <h2 style="font-size:1.25rem;margin-bottom:6px;color:var(--text);">Invitation Invalid</h2>
+          <p id="invite-error-message" style="color:var(--text-muted);font-size:0.9rem;">This invitation has expired or has already been used.</p>
+          <p style="color:var(--text-muted);font-size:0.85rem;margin-top:12px;">Contact your administrator for a new invitation.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+
+    (async function validateToken() {
+      if (!token) {
+        showError('No invitation token provided.');
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/invites/validate?token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+
+        if (!res.ok) {
+          showError(data.error || 'This invitation is no longer valid.');
+          return;
+        }
+
+        document.getElementById('invite-email').value = data.email;
+        document.getElementById('invite-loading').style.display = 'none';
+        document.getElementById('invite-form-section').style.display = 'block';
+        lucide.createIcons();
+      } catch (e) {
+        showError('Unable to validate invitation. Please try again later.');
+      }
+    })();
+
+    async function handleAccept(e) {
+      e.preventDefault();
+      const btn = document.getElementById('invite-submit');
+      const errorEl = document.getElementById('invite-error');
+      errorEl.style.display = 'none';
+
+      const password = document.getElementById('invite-password').value;
+      const confirm = document.getElementById('invite-confirm').value;
+
+      if (password !== confirm) {
+        errorEl.textContent = 'Passwords do not match.';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Creating account...';
+
+      try {
+        const res = await fetch('/api/invites/accept', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            name: document.getElementById('invite-name').value,
+            password
+          })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to accept invitation.');
+        }
+
+        // Store auth token and redirect to main app
+        localStorage.setItem('token', data.token);
+        if (data.user) {
+          localStorage.setItem('user', JSON.stringify(data.user));
+        }
+
+        document.getElementById('invite-form-section').style.display = 'none';
+        document.getElementById('invite-success').style.display = 'block';
+        lucide.createIcons();
+
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 1500);
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Create Account';
+      }
+    }
+
+    function showError(message) {
+      document.getElementById('invite-loading').style.display = 'none';
+      document.getElementById('invite-error-message').textContent = message;
+      document.getElementById('invite-error-state').style.display = 'block';
+      lucide.createIcons();
+    }
+
+    // Initialize lucide icons for loading state
+    lucide.createIcons();
+  </script>
+</body>
+</html>

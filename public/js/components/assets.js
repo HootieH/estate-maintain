@@ -23,6 +23,9 @@ const Assets = {
       container.innerHTML = `
         <div class="page-header">
           <h1>Assets <span class="tip-trigger" data-tip="asset"><i data-lucide="help-circle" class="tip-badge-icon"></i></span></h1>
+          <button class="btn btn-secondary" onclick="QRCodes.printPropertyAssets(Assets._filterProp || '', 'All Properties')" title="Print QR Labels">
+            <i data-lucide="qr-code"></i> Print QR Labels
+          </button>
           <button class="btn btn-primary" onclick="Router.navigate('#/assets/new')">
             <i data-lucide="plus"></i> Add Asset
           </button>
@@ -156,6 +159,7 @@ const Assets = {
             ${asset.criticality ? `<span class="badge badge-${asset.criticality === 'critical' ? 'critical' : asset.criticality === 'high' ? 'high' : 'medium'}">${asset.criticality} criticality</span>` : ''}
           </div>
           <div class="page-header-actions">
+            ${QRCodes.button('asset', params.id, asset.name, asset.category + ' | ' + (asset.property_name || ''))}
             <button class="btn btn-secondary" onclick="Assets.edit('${params.id}')">
               <i data-lucide="edit"></i> Edit
             </button>

@@ -516,6 +516,128 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  -- Permissions system
+  CREATE TABLE IF NOT EXISTS permissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    resource TEXT NOT NULL,
+    action TEXT NOT NULL,
+    description TEXT,
+    UNIQUE(resource, action)
+  );
+
+  CREATE TABLE IF NOT EXISTS role_permissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    role TEXT NOT NULL CHECK(role IN ('admin','manager','technician')),
+    permission_id INTEGER NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+    UNIQUE(role, permission_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS user_permission_overrides (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    permission_id INTEGER NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+    grant_type TEXT NOT NULL CHECK(grant_type IN ('grant','revoke')),
+    granted_by INTEGER REFERENCES users(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, permission_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS role_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    description TEXT,
+    is_system INTEGER DEFAULT 0,
+    created_by INTEGER REFERENCES users(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS role_template_permissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    template_id INTEGER NOT NULL REFERENCES role_templates(id) ON DELETE CASCADE,
+    permission_id INTEGER NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+    UNIQUE(template_id, permission_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS user_property_access (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+    granted_by INTEGER REFERENCES users(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, property_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS invite_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL,
+    token TEXT UNIQUE NOT NULL,
+    role TEXT DEFAULT 'technician' CHECK(role IN ('admin','manager','technician')),
+    team_id INTEGER REFERENCES teams(id),
+    invited_by INTEGER NOT NULL REFERENCES users(id),
+    expires_at DATETIME NOT NULL,
+    accepted_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS login_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    method TEXT NOT NULL CHECK(method IN ('password','passkey')),
+    ip_address TEXT,
+    user_agent TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS work_order_reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    work_order_id INTEGER NOT NULL REFERENCES work_orders(id) ON DELETE CASCADE,
+    reviewer_id INTEGER NOT NULL REFERENCES users(id),
+    status TEXT NOT NULL CHECK(status IN ('pending','approved','rework_requested')),
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    resolved_at DATETIME
+  );
+
+  CREATE TABLE IF NOT EXISTS approval_rules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_type TEXT NOT NULL CHECK(entity_type IN ('purchase_order','invoice','work_order')),
+    condition_field TEXT NOT NULL,
+    condition_operator TEXT NOT NULL CHECK(condition_operator IN ('>','>=','<','<=','=')),
+    condition_value TEXT NOT NULL,
+    required_role TEXT NOT NULL CHECK(required_role IN ('admin','manager')),
+    description TEXT,
+    is_active INTEGER DEFAULT 1,
+    created_by INTEGER REFERENCES users(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS approval_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    rule_id INTEGER REFERENCES approval_rules(id),
+    entity_type TEXT NOT NULL,
+    entity_id INTEGER NOT NULL,
+    requested_by INTEGER NOT NULL REFERENCES users(id),
+    assigned_to INTEGER REFERENCES users(id),
+    delegated_to INTEGER REFERENCES users(id),
+    status TEXT DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    resolved_at DATETIME,
+    resolved_by INTEGER REFERENCES users(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS delegations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    delegator_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    delegate_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    reason TEXT,
+    starts_at DATETIME NOT NULL,
+    ends_at DATETIME NOT NULL,
+    is_active INTEGER DEFAULT 1,
+    created_by INTEGER NOT NULL REFERENCES users(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE TABLE IF NOT EXISTS bid_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     bid_id INTEGER NOT NULL REFERENCES bids(id) ON DELETE CASCADE,
@@ -527,6 +649,14 @@ db.exec(`
     amount REAL DEFAULT 0,
     notes TEXT,
     sort_order INTEGER DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS user_teams (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, team_id)
   );
 `);
 
@@ -626,6 +756,99 @@ try {
 } catch (e) {
   db.exec("ALTER TABLE properties ADD COLUMN qbo_class_id TEXT");
 }
+
+// User management migrations
+try {
+  db.prepare("SELECT status FROM users LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'active' CHECK(status IN ('invited','active','suspended','deactivated'))");
+  db.exec("ALTER TABLE users ADD COLUMN force_password_reset INTEGER DEFAULT 0");
+  db.exec("ALTER TABLE users ADD COLUMN is_team_lead INTEGER DEFAULT 0");
+  // Sync status with existing is_active column
+  db.exec("UPDATE users SET status = 'active' WHERE is_active = 1");
+  db.exec("UPDATE users SET status = 'deactivated' WHERE is_active = 0");
+}
+
+// Migrate users.team_id data into user_teams junction table
+try {
+  db.exec("CREATE TABLE IF NOT EXISTS user_teams (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, team_id))");
+  db.exec("INSERT OR IGNORE INTO user_teams (user_id, team_id) SELECT id, team_id FROM users WHERE team_id IS NOT NULL");
+} catch (e) {
+  // user_teams already populated or no data to migrate
+}
+
+// Seed permissions (idempotent)
+const permissionDefs = [
+  ['workorders', 'view'], ['workorders', 'create'], ['workorders', 'edit'], ['workorders', 'delete'],
+  ['workorders', 'assign'], ['workorders', 'sign_off'], ['workorders', 'review'],
+  ['properties', 'view'], ['properties', 'create'], ['properties', 'edit'], ['properties', 'delete'],
+  ['assets', 'view'], ['assets', 'create'], ['assets', 'edit'], ['assets', 'delete'],
+  ['preventive', 'view'], ['preventive', 'create'], ['preventive', 'edit'], ['preventive', 'delete'],
+  ['parts', 'view'], ['parts', 'create'], ['parts', 'edit'], ['parts', 'delete'],
+  ['teams', 'view'], ['teams', 'create'], ['teams', 'edit'], ['teams', 'delete'], ['teams', 'manage_members'],
+  ['vendors', 'view'], ['vendors', 'create'], ['vendors', 'edit'], ['vendors', 'delete'],
+  ['purchaseorders', 'view'], ['purchaseorders', 'create'], ['purchaseorders', 'edit'],
+  ['purchaseorders', 'delete'], ['purchaseorders', 'approve'],
+  ['invoices', 'view'], ['invoices', 'create'], ['invoices', 'edit'],
+  ['invoices', 'delete'], ['invoices', 'approve'], ['invoices', 'send_to_billcom'],
+  ['projects', 'view'], ['projects', 'create'], ['projects', 'edit'], ['projects', 'delete'], ['projects', 'award'],
+  ['procedures', 'view'], ['procedures', 'create'], ['procedures', 'edit'], ['procedures', 'delete'],
+  ['requests', 'view'], ['requests', 'approve'], ['requests', 'decline'],
+  ['reports', 'view'], ['reports', 'export'],
+  ['users', 'view'], ['users', 'create'], ['users', 'edit'], ['users', 'suspend'],
+  ['users', 'deactivate'], ['users', 'force_reset'], ['users', 'manage_permissions'],
+  ['settings', 'view'], ['settings', 'edit'],
+  ['integrations', 'view'], ['integrations', 'configure'],
+  ['messages', 'view'], ['messages', 'send'],
+  ['audit_log', 'view'], ['audit_log', 'export'],
+  ['approvals', 'view'], ['approvals', 'manage_rules'], ['approvals', 'delegate'],
+];
+
+const insertPerm = db.prepare('INSERT OR IGNORE INTO permissions (resource, action) VALUES (?, ?)');
+const insertPermsTx = db.transaction(() => {
+  for (const [resource, action] of permissionDefs) {
+    insertPerm.run(resource, action);
+  }
+});
+insertPermsTx();
+
+// Seed role-permission mappings (idempotent)
+const allPerms = db.prepare('SELECT id, resource, action FROM permissions').all();
+const permMap = {};
+for (const p of allPerms) permMap[`${p.resource}:${p.action}`] = p.id;
+
+const techPerms = [
+  'workorders:view', 'workorders:create', 'workorders:edit',
+  'properties:view', 'assets:view', 'preventive:view',
+  'parts:view', 'procedures:view',
+  'messages:view', 'messages:send',
+  'teams:view', 'requests:view',
+];
+
+const managerPerms = [
+  ...Object.keys(permMap).filter(k =>
+    !k.startsWith('users:manage_permissions') && !k.startsWith('users:deactivate') &&
+    !k.startsWith('settings:edit') && !k.startsWith('integrations:configure') &&
+    !k.startsWith('approvals:manage_rules')
+  ),
+];
+
+const insertRolePerm = db.prepare('INSERT OR IGNORE INTO role_permissions (role, permission_id) VALUES (?, ?)');
+const seedRolePermsTx = db.transaction(() => {
+  // Admin gets everything
+  for (const p of allPerms) {
+    insertRolePerm.run('admin', p.id);
+  }
+  // Manager
+  for (const key of managerPerms) {
+    if (permMap[key]) insertRolePerm.run('manager', permMap[key]);
+  }
+  // Technician
+  for (const key of techPerms) {
+    if (permMap[key]) insertRolePerm.run('technician', permMap[key]);
+  }
+});
+seedRolePermsTx();
 
 function logActivity(entityType, entityId, action, details, userId) {
   const stmt = db.prepare(

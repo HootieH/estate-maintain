@@ -2574,3 +2574,89 @@ h1 .tip-badge-icon {
   font-size: 14px;
   flex-shrink: 0;
 }
+
+/* ============================================
+   QR Code System
+   ============================================ */
+
+.qr-modal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.qr-preview {
+  padding: 16px;
+  background: white;
+  border-radius: 12px;
+  border: 2px solid var(--border);
+}
+
+.qr-image {
+  width: 200px;
+  height: 200px;
+  image-rendering: pixelated;
+}
+
+.qr-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+}
+
+.qr-entity-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.qr-entity-type {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.qr-entity-subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.qr-url {
+  font-size: 11px;
+  color: var(--text-light);
+  background: var(--bg);
+  padding: 4px 12px;
+  border-radius: 6px;
+  word-break: break-all;
+  max-width: 100%;
+}
+
+.qr-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.qr-thumbnail {
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.qr-thumbnail:hover {
+  transform: scale(1.05);
+}
+
+[data-theme="dark"] .qr-preview {
+  background: white;
+}
+
+[data-theme="dark"] .qr-image {
+  filter: none;
+}

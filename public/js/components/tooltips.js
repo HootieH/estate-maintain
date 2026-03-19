@@ -74,6 +74,11 @@ const Tooltips = {
       title: 'Maintenance Frequency',
       text: 'How often a preventive task repeats — from daily checks to annual inspections. The system auto-calculates the next due date after each completion.',
       connections: ''
+    },
+    'qr-code': {
+      title: 'QR Codes & NFC Tags',
+      text: 'Every asset, location, part, and procedure can have a printed QR code or NFC tag. Scan with any phone camera to jump directly to that item — view maintenance history, start a procedure, or update inventory. No app download needed.',
+      connections: 'Works with Assets, Locations, Parts, Procedures, PM Schedules'
     }
   },
 

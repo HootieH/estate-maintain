@@ -17,7 +17,7 @@ router.get('/', (req, res) => {
 
     const teams = db.prepare(`
       SELECT t.*,
-        (SELECT COUNT(*) FROM users u WHERE u.team_id = t.id AND u.is_active = 1) AS member_count,
+        (SELECT COUNT(*) FROM user_teams ut JOIN users u ON ut.user_id = u.id WHERE ut.team_id = t.id AND u.is_active = 1) AS member_count,
         (SELECT COUNT(*) FROM properties p WHERE p.team_id = t.id) AS property_count
       FROM teams t
       ORDER BY t.name
@@ -46,7 +46,7 @@ router.get('/:id', (req, res) => {
     }
 
     const members = db.prepare(
-      'SELECT id, email, name, role, avatar_color, created_at FROM users WHERE team_id = ? AND is_active = 1 ORDER BY name'
+      'SELECT u.id, u.email, u.name, u.role, u.avatar_color, u.created_at FROM users u JOIN user_teams ut ON u.id = ut.user_id WHERE ut.team_id = ? AND u.is_active = 1 ORDER BY u.name'
     ).all(req.params.id);
 
     const properties = db.prepare(
@@ -117,15 +117,15 @@ router.post('/:id/members', requireRole('admin', 'manager'), (req, res) => {
       return res.status(400).json({ error: 'user_id is required' });
     }
 
-    const user = db.prepare('SELECT id, name, email, role, team_id FROM users WHERE id = ?').get(user_id);
+    const user = db.prepare('SELECT id, name, email, role FROM users WHERE id = ?').get(user_id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    db.prepare('UPDATE users SET team_id = ? WHERE id = ?').run(req.params.id, user_id);
+    db.prepare('INSERT OR IGNORE INTO user_teams (user_id, team_id) VALUES (?, ?)').run(user_id, req.params.id);
     logActivity('team', parseInt(req.params.id), 'member_added', `User "${user.name}" added to team "${team.name}"`, req.user.id);
 
-    const updatedUser = db.prepare('SELECT id, email, name, role, avatar_color, team_id FROM users WHERE id = ?').get(user_id);
+    const updatedUser = db.prepare('SELECT id, email, name, role, avatar_color FROM users WHERE id = ?').get(user_id);
     res.status(201).json(updatedUser);
   } catch (err) {
     res.status(500).json({ error: 'Failed to add team member', details: err.message });
@@ -140,13 +140,13 @@ router.delete('/:id/members/:userId', requireRole('admin', 'manager'), (req, res
       return res.status(404).json({ error: 'Team not found' });
     }
 
-    const user = db.prepare('SELECT id, name, team_id FROM users WHERE id = ? AND team_id = ?').get(req.params.userId, req.params.id);
-    if (!user) {
+    const membership = db.prepare('SELECT ut.user_id, u.name FROM user_teams ut JOIN users u ON ut.user_id = u.id WHERE ut.user_id = ? AND ut.team_id = ?').get(req.params.userId, req.params.id);
+    if (!membership) {
       return res.status(404).json({ error: 'User not found in this team' });
     }
 
-    db.prepare('UPDATE users SET team_id = NULL WHERE id = ?').run(req.params.userId);
-    logActivity('team', parseInt(req.params.id), 'member_removed', `User "${user.name}" removed from team "${team.name}"`, req.user.id);
+    db.prepare('DELETE FROM user_teams WHERE user_id = ? AND team_id = ?').run(req.params.userId, req.params.id);
+    logActivity('team', parseInt(req.params.id), 'member_removed', `User "${membership.name}" removed from team "${team.name}"`, req.user.id);
 
     res.json({ message: 'Member removed from team' });
   } catch (err) {
@@ -191,7 +191,7 @@ router.delete('/:id', requireRole('admin'), (req, res) => {
       return res.status(404).json({ error: 'Team not found' });
     }
 
-    db.prepare('UPDATE users SET team_id = NULL WHERE team_id = ?').run(req.params.id);
+    db.prepare('DELETE FROM user_teams WHERE team_id = ?').run(req.params.id);
     db.prepare('DELETE FROM teams WHERE id = ?').run(req.params.id);
 
     logActivity('team', parseInt(req.params.id), 'deleted', `Team "${existing.name}" deleted`, req.user.id);

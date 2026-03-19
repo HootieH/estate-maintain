@@ -19,6 +19,9 @@ const Parts = {
       container.innerHTML = `
         <div class="page-header">
           <h1>Parts & Inventory <span class="tip-trigger" data-tip="parts"><i data-lucide="help-circle" class="tip-badge-icon"></i></span></h1>
+          <button class="btn btn-secondary" onclick="QRCodes.printAllParts()" title="Print QR Labels">
+            <i data-lucide="qr-code"></i> Print Labels
+          </button>
           <button class="btn btn-primary" onclick="Router.navigate('#/parts/new')">
             <i data-lucide="plus"></i> Add Part
           </button>
@@ -237,6 +240,7 @@ const Parts = {
             ${isLow ? '<span class="badge badge-critical">Low Stock</span>' : ''}
           </div>
           <div class="page-header-actions">
+            ${QRCodes.button('part', params.id, part.name, part.sku || part.category || '')}
             <button class="btn btn-secondary" onclick="Parts.edit('${params.id}')">
               <i data-lucide="edit"></i> Edit
             </button>

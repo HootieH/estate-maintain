@@ -37,6 +37,13 @@ const invoiceRoutes = require('./src/routes/invoices');
 const integrationRoutes = require('./src/routes/integrations');
 const projectRoutes = require('./src/routes/projects');
 const passkeyRoutes = require('./src/routes/passkeys');
+const userRoutes = require('./src/routes/users');
+const inviteRoutes = require('./src/routes/invites');
+const permissionRoutes = require('./src/routes/permissions');
+const auditRoutes = require('./src/routes/audit');
+const reviewRoutes = require('./src/routes/reviews');
+const approvalRoutes = require('./src/routes/approvals');
+const delegationRoutes = require('./src/routes/delegations');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -77,10 +84,20 @@ app.use('/api/invoices', invoiceRoutes);
 app.use('/api/integrations', integrationRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/passkeys', passkeyRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/invites', inviteRoutes);
+app.use('/api/permissions', permissionRoutes);
+app.use('/api/audit', auditRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/approvals', approvalRoutes);
+app.use('/api/delegations', delegationRoutes);
 
-// Serve public request page before SPA fallback
+// Serve public pages before SPA fallback
 app.get('/request', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'request.html'));
+});
+app.get('/invite', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'invite.html'));
 });
 
 // Preventive maintenance cron job - runs daily at midnight
@@ -194,6 +211,27 @@ cron.schedule('0 */4 * * *', async () => {
     }
   } catch (err) {
     console.error('[CRON] Payment status poll failed:', err.message);
+  }
+});
+
+// QR code scan handler - redirects to appropriate SPA route
+app.get('/scan/:type/:id', (req, res) => {
+  const { type, id } = req.params;
+  const routeMap = {
+    asset: `/assets/${id}`,
+    location: `/locations/${id}`,
+    part: `/parts/${id}`,
+    property: `/properties/${id}`,
+    pm: `/preventive/${id}`,
+    procedure: `/procedures/${id}`,
+    wo: `/workorders/${id}`,
+    project: `/projects/${id}`
+  };
+  const route = routeMap[type];
+  if (route) {
+    res.redirect(`/#${route}`);
+  } else {
+    res.redirect('/#/dashboard');
   }
 });
 

@@ -8,7 +8,7 @@ const router = express.Router();
 
 function generateToken(user) {
   return jwt.sign(
-    { id: user.id, email: user.email, name: user.name, role: user.role, team_id: user.team_id },
+    { id: user.id, email: user.email, name: user.name, role: user.role },
     process.env.JWT_SECRET,
     { expiresIn: '7d' }
   );
@@ -61,8 +61,13 @@ router.post('/register', async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 10);
 
     const result = db.prepare(
-      'INSERT INTO users (email, password_hash, name, role, team_id) VALUES (?, ?, ?, ?, ?)'
-    ).run(email, passwordHash, name, assignedRole, team_id || null);
+      'INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, ?, ?)'
+    ).run(email, passwordHash, name, assignedRole);
+
+    // If team_id provided, add to junction table
+    if (team_id) {
+      db.prepare('INSERT OR IGNORE INTO user_teams (user_id, team_id) VALUES (?, ?)').run(result.lastInsertRowid, team_id);
+    }
 
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
     const token = generateToken(user);
@@ -84,8 +89,16 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    const user = db.prepare('SELECT * FROM users WHERE email = ? AND is_active = 1').get(email);
+    const user = db.prepare("SELECT * FROM users WHERE email = ? AND (is_active = 1 OR status = 'active')").get(email);
     if (!user) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // Check user status
+    if (user.status === 'suspended') {
+      return res.status(403).json({ error: 'Account is suspended. Contact your administrator.' });
+    }
+    if (user.status === 'deactivated') {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
@@ -95,9 +108,19 @@ router.post('/login', async (req, res) => {
     }
 
     const token = generateToken(user);
-    // Track last login
     db.prepare('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?').run(user.id);
-    res.json({ token, user: sanitizeUser(user) });
+
+    // Record login history
+    try {
+      db.prepare('INSERT INTO login_history (user_id, method, ip_address, user_agent) VALUES (?, ?, ?, ?)')
+        .run(user.id, 'password', req.ip, req.headers['user-agent'] || null);
+    } catch (_) {}
+
+    const response = { token, user: sanitizeUser(user) };
+    if (user.force_password_reset) {
+      response.force_password_reset = true;
+    }
+    res.json(response);
   } catch (err) {
     res.status(500).json({ error: 'Login failed', details: err.message });
   }
@@ -149,10 +172,42 @@ router.put('/me', authenticate, (req, res) => {
 // GET /users
 router.get('/users', authenticate, (req, res) => {
   try {
-    const users = db.prepare('SELECT id, email, name, role, team_id, avatar_color, created_at FROM users WHERE is_active = 1 ORDER BY name').all();
+    const users = db.prepare('SELECT id, email, name, role, avatar_color, created_at FROM users WHERE is_active = 1 ORDER BY name').all();
+
+    // Batch-fetch team memberships for all users
+    if (users.length > 0) {
+      const placeholders = users.map(() => '?').join(',');
+      const userIds = users.map(u => u.id);
+      const teamRows = db.prepare(`
+        SELECT ut.user_id, t.id, t.name
+        FROM user_teams ut
+        JOIN teams t ON ut.team_id = t.id
+        WHERE ut.user_id IN (${placeholders})
+      `).all(...userIds);
+
+      const teamsByUser = {};
+      for (const row of teamRows) {
+        if (!teamsByUser[row.user_id]) teamsByUser[row.user_id] = [];
+        teamsByUser[row.user_id].push({ id: row.id, name: row.name });
+      }
+
+      for (const user of users) {
+        user.teams = teamsByUser[user.id] || [];
+      }
+    }
+
     res.json(users);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch users', details: err.message });
+  }
+});
+
+// GET /me/permissions - client permission set for sidebar gating
+router.get('/me/permissions', authenticate, (req, res) => {
+  try {
+    res.json({ permissions: Array.from(req.user.permissions) });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch permissions', details: err.message });
   }
 });
 

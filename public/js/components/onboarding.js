@@ -14,7 +14,7 @@ const Onboarding = {
         this._data = { userName: status.name };
 
         if (status.role === 'admin') {
-          this._steps = ['welcome', 'property', 'assets', 'team', 'complete'];
+          this._steps = ['welcome', 'property', 'assets', 'team', 'invite', 'complete'];
         } else if (status.role === 'manager') {
           this._steps = ['welcome', 'overview', 'complete'];
         } else {
@@ -61,6 +61,7 @@ const Onboarding = {
       case 'property': this._renderProperty(content); break;
       case 'assets': this._renderAssets(content); break;
       case 'team': this._renderTeam(content); break;
+      case 'invite': this._renderInvite(content); break;
       case 'overview': this._renderOverview(content); break;
       case 'complete': this._renderComplete(content); break;
     }
@@ -388,6 +389,105 @@ const Onboarding = {
     }
   },
 
+  _renderInvite(el) {
+    el.innerHTML = `
+      <div class="ob-step-content">
+        <div class="ob-step-header">
+          <div class="ob-step-icon">
+            <i data-lucide="user-plus"></i>
+          </div>
+          <h2>Invite Your Team</h2>
+          <p>Add managers and technicians. Each person gets an invite link to set up their own account with the right role and permissions.</p>
+        </div>
+
+        <div id="ob-invite-list"></div>
+
+        <form class="ob-form" id="ob-invite-form" onsubmit="Onboarding.handleInviteSubmit(event)">
+          <div class="ob-form-row" style="display:flex;gap:10px">
+            <div class="ob-form-group" style="flex:2">
+              <label for="ob-invite-email">Email</label>
+              <input type="email" id="ob-invite-email" class="form-control" placeholder="colleague@example.com" required>
+            </div>
+            <div class="ob-form-group" style="flex:1">
+              <label for="ob-invite-role">Role</label>
+              <select id="ob-invite-role" class="form-control">
+                <option value="manager">Manager</option>
+                <option value="technician" selected>Technician</option>
+              </select>
+            </div>
+            ${this._data.teamId ? `
+            <div class="ob-form-group" style="flex:1">
+              <label for="ob-invite-team">Team</label>
+              <select id="ob-invite-team" class="form-control">
+                <option value="">None</option>
+                <option value="${this._data.teamId}" selected>${this._data.teamName || 'Team'}</option>
+              </select>
+            </div>
+            ` : ''}
+          </div>
+          <div id="ob-invite-error" class="form-error" style="display:none"></div>
+          <button type="submit" class="btn btn-secondary" id="ob-invite-submit" style="margin-top:8px">
+            <i data-lucide="send"></i> <span>Send Invite</span>
+          </button>
+        </form>
+
+        <div class="ob-actions" style="margin-top:24px">
+          <button type="button" class="btn btn-secondary" onclick="Onboarding.skip()">Skip for now</button>
+          <button type="button" class="btn btn-primary" onclick="Onboarding.next()">
+            <span>Continue</span>
+            <i data-lucide="arrow-right"></i>
+          </button>
+        </div>
+      </div>
+    `;
+
+    this._data.invites = this._data.invites || [];
+    this._updateInviteList();
+  },
+
+  async handleInviteSubmit(e) {
+    e.preventDefault();
+    const btn = document.getElementById('ob-invite-submit');
+    const errorEl = document.getElementById('ob-invite-error');
+    errorEl.style.display = 'none';
+    btn.disabled = true;
+
+    const email = document.getElementById('ob-invite-email').value;
+    const role = document.getElementById('ob-invite-role').value;
+    const teamEl = document.getElementById('ob-invite-team');
+    const team_id = teamEl ? teamEl.value || null : null;
+
+    try {
+      const result = await API.post('/invites', { email, role, team_id });
+      this._data.invites.push({ email, role, token: result.token });
+      this._updateInviteList();
+      document.getElementById('ob-invite-email').value = '';
+      App.toast(`Invite sent to ${email}`, 'success');
+    } catch (err) {
+      errorEl.textContent = err.message;
+      errorEl.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+    }
+  },
+
+  _updateInviteList() {
+    const list = document.getElementById('ob-invite-list');
+    if (!list || !this._data.invites?.length) {
+      if (list) list.innerHTML = '';
+      return;
+    }
+    list.innerHTML = this._data.invites.map(inv => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <i data-lucide="mail-check" style="width:16px;height:16px;color:var(--primary)"></i>
+        <span style="flex:1;font-size:0.9rem">${inv.email}</span>
+        <span class="role-badge role-${inv.role}">${inv.role}</span>
+        <button class="btn btn-sm btn-secondary" onclick="navigator.clipboard.writeText(location.origin+'/invite?token=${inv.token}');App.toast('Link copied','success')">Copy Link</button>
+      </div>
+    `).join('');
+    lucide.createIcons();
+  },
+
   _renderOverview(el) {
     // Manager overview step
     const sections = [
@@ -442,7 +542,7 @@ const Onboarding = {
     const quickActions = this._role === 'admin' ? [
       { icon: 'clipboard-list', label: 'Create Work Order', route: '#/workorders/new', color: '#3B82F6' },
       { icon: 'building-2', label: 'Add Another Property', route: '#/properties/new', color: '#8B5CF6' },
-      { icon: 'user-plus', label: 'Invite Team Members', route: '#/teams', color: '#10B981' },
+      { icon: 'user-plus', label: 'Invite Team Members', route: '#/users', color: '#10B981' },
       { icon: 'calendar-clock', label: 'Set Up Preventive Maintenance', route: '#/preventive/new', color: '#F59E0B' }
     ] : this._role === 'manager' ? [
       { icon: 'clipboard-list', label: 'View Work Orders', route: '#/workorders', color: '#3B82F6' },

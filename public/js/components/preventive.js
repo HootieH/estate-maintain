@@ -135,6 +135,7 @@ const Preventive = {
             <h1>${pm.title || pm.name || 'Schedule Detail'}</h1>
           </div>
           <div class="page-header-actions">
+            ${QRCodes.button('pm', params.id, pm.title || pm.name || '', pm.frequency || '')}
             <button class="btn btn-success" onclick="Preventive.markComplete('${params.id}')">
               <i data-lucide="check"></i> Mark Complete
             </button>

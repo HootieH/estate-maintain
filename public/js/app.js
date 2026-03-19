@@ -44,6 +44,11 @@ const App = {
     Router.add('/projects/new', () => Projects.form());
     Router.add('/projects/:id', (p) => Projects.detail(p));
     Router.add('/guide', () => Guide.render());
+    Router.add('/users', () => UserManagement.list());
+    Router.add('/users/:id', (p) => UserDetail.render(p));
+    Router.add('/audit', () => AuditLog.render());
+    Router.add('/reviews', () => ReviewQueue.render());
+    Router.add('/approvals', () => Approvals.render());
 
     Router.init();
 
@@ -81,11 +86,15 @@ const App = {
     if (obOverlay) obOverlay.style.display = 'none';
   },
 
-  showMain() {
+  async showMain() {
     document.getElementById('login-view').style.display = 'none';
     document.getElementById('main-view').style.display = 'flex';
     this.updateSidebarUser();
     lucide.createIcons();
+
+    // Load permissions and gate sidebar
+    await Permissions.fetch();
+    Permissions.gateSidebar();
 
     if (!window.location.hash || window.location.hash === '#/login') {
       window.location.hash = '#/dashboard';

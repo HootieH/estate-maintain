@@ -99,6 +99,7 @@ const Properties = {
             <span class="badge badge-property-${(property.type || 'other').toLowerCase()}">${property.type || 'Other'}</span>
           </div>
           <div class="page-header-actions">
+            ${QRCodes.button('property', params.id, property.name, property.address || property.type || '')}
             <button class="btn btn-primary" onclick="Router.navigate('#/workorders/new')">
               <i data-lucide="plus"></i> New Work Order
             </button>
@@ -281,6 +282,9 @@ const Properties = {
               ${as.needs_repair > 0 ? `<span class="badge" style="background:#FEF3C7;color:#D97706">${as.needs_repair} needs repair</span>` : ''}
               ${as.out_of_service > 0 ? `<span class="badge" style="background:#FEE2E2;color:#DC2626">${as.out_of_service} out of service</span>` : ''}
             </div>
+            <button class="btn btn-secondary btn-sm" onclick="QRCodes.printPropertyAssets('${params.id}', '${property.name}')">
+              <i data-lucide="qr-code"></i> Print All QR
+            </button>
             <button class="btn btn-primary btn-sm" onclick="Router.navigate('#/assets/new')"><i data-lucide="plus"></i> Add Asset</button>
           </div>
           ${assetList.length === 0 ? `

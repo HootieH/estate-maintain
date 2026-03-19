@@ -27,9 +27,16 @@ router.get('/channels', (req, res) => {
         ))
         OR (m.channel_type = 'team' AND m.channel_id = 'team_' || ?)
         OR m.channel_type = 'work_order'
-    `).all(userId, userId, userId, req.user.team_id || -1);
+    `).all(userId, userId, userId, req.user.team_ids && req.user.team_ids[0] ? req.user.team_ids[0] : -1);
 
     // Better approach: get all channels where user participated
+    // Build team channel conditions for all user's teams
+    const teamIds = req.user.team_ids || [];
+    const teamChannelIds = teamIds.length > 0
+      ? teamIds.map(tid => 'team_' + tid)
+      : ['team_-1'];
+    const teamPlaceholders = teamChannelIds.map(() => '?').join(',');
+
     const allChannels = db.prepare(`
       SELECT DISTINCT channel_type, channel_id FROM messages
       WHERE sender_id = ?
@@ -40,7 +47,7 @@ router.get('/channels', (req, res) => {
       UNION
       SELECT DISTINCT channel_type, channel_id FROM messages
       WHERE channel_type = 'team'
-        AND channel_id = ?
+        AND channel_id IN (${teamPlaceholders})
       UNION
       SELECT DISTINCT channel_type, channel_id FROM messages
       WHERE channel_type = 'work_order'
@@ -51,7 +58,7 @@ router.get('/channels', (req, res) => {
     `).all(
       userId,
       userId, userId,
-      'team_' + (req.user.team_id || -1),
+      ...teamChannelIds,
       userId, userId
     );
 
@@ -212,16 +219,19 @@ router.get('/unread', (req, res) => {
         AND m.id NOT IN (SELECT mr.message_id FROM message_reads mr WHERE mr.user_id = ?)
     `).get(userId, userId, userId, userId);
 
-    // Team messages
+    // Team messages (across all user's teams)
     let teamUnread = { count: 0 };
-    if (req.user.team_id) {
+    const userTeamIds = req.user.team_ids || [];
+    if (userTeamIds.length > 0) {
+      const teamChannels = userTeamIds.map(tid => 'team_' + tid);
+      const placeholders = teamChannels.map(() => '?').join(',');
       teamUnread = db.prepare(`
         SELECT COUNT(*) AS count FROM messages m
         WHERE m.channel_type = 'team'
-          AND m.channel_id = ?
+          AND m.channel_id IN (${placeholders})
           AND m.sender_id != ?
           AND m.id NOT IN (SELECT mr.message_id FROM message_reads mr WHERE mr.user_id = ?)
-      `).get('team_' + req.user.team_id, userId, userId);
+      `).get(...teamChannels, userId, userId);
     }
 
     // Work order messages for user's assigned/created WOs

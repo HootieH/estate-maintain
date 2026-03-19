@@ -15,6 +15,9 @@ const Guide = {
         <button class="guide-tab ${this._activeTab === 'workflows' ? 'active' : ''}" onclick="Guide.switchTab('workflows')">
           <i data-lucide="route"></i> Common Workflows
         </button>
+        <button class="guide-tab ${this._activeTab === 'users' ? 'active' : ''}" onclick="Guide.switchTab('users')">
+          <i data-lucide="shield-check"></i> Users & Permissions
+        </button>
         <button class="guide-tab ${this._activeTab === 'reference' ? 'active' : ''}" onclick="Guide.switchTab('reference')">
           <i data-lucide="layout-grid"></i> Quick Reference
         </button>
@@ -36,6 +39,7 @@ const Guide = {
     switch (this._activeTab) {
       case 'flow': return this.renderFlow();
       case 'workflows': return this.renderWorkflows();
+      case 'users': return this.renderUsers();
       case 'reference': return this.renderReference();
       default: return '';
     }
@@ -346,6 +350,19 @@ const Guide = {
         ]
       },
       {
+        title: 'Using QR codes and NFC tags in the field',
+        icon: 'qr-code',
+        color: '#0EA5E9',
+        steps: [
+          { icon: 'printer', text: 'Go to any <strong>Asset</strong>, <strong>Part</strong>, or <strong>Procedure</strong> detail page and click <strong>QR Code</strong> to print a label' },
+          { icon: 'layers', text: 'For bulk printing, use <strong>Print QR Labels</strong> on the Assets or Parts list to print all codes at once — ready for label sheets' },
+          { icon: 'scan-line', text: 'Stick QR labels on equipment, bins, and room doors. Program NFC tags with the same URL' },
+          { icon: 'smartphone', text: 'Staff <strong>scan with any phone camera</strong> — it opens the item directly in Estate Maintain. No app needed.' },
+          { icon: 'wrench', text: 'From the scanned page: see last maintenance, log downtime, start a procedure, record a meter reading, or update inventory' },
+          { icon: 'clipboard-check', text: 'For rooms: scan the location QR to see linked <strong>procedures</strong> — tap to start the cleaning or setup checklist' }
+        ]
+      },
+      {
         title: 'Getting competitive bids on a project',
         icon: 'briefcase',
         color: '#6366F1',
@@ -424,6 +441,292 @@ const Guide = {
     }
   },
 
+  renderUsers() {
+    return `
+      <div class="guide-section">
+        <div class="guide-intro">
+          <h2>Users & Permissions</h2>
+          <p>How people, roles, and access control work together in Estatecraft.</p>
+        </div>
+
+        <!-- Role Hierarchy -->
+        <div class="card" style="margin-bottom:24px">
+          <div class="card-header"><h3>Role Hierarchy</h3></div>
+          <div class="card-body">
+            <div class="hierarchy-chart">
+              <div class="hier-node hier-admin">
+                <div class="hier-icon" style="background:#991B1B;color:#FEE2E2"><i data-lucide="crown"></i></div>
+                <div class="hier-details">
+                  <strong>Administrator</strong>
+                  <span class="role-badge role-admin">admin</span>
+                  <p>Full control. Creates the estate, manages all users, configures permissions, approval rules, and integrations. Sees everything.</p>
+                </div>
+              </div>
+              <div class="hier-line"></div>
+              <div class="hier-node hier-manager">
+                <div class="hier-icon" style="background:#1E40AF;color:#DBEAFE"><i data-lucide="briefcase"></i></div>
+                <div class="hier-details">
+                  <strong>Manager</strong>
+                  <span class="role-badge role-manager">manager</span>
+                  <p>Oversees operations. Assigns work, reviews completed work orders, approves purchase orders, manages vendors and teams. Cannot manage user permissions or system settings.</p>
+                </div>
+              </div>
+              <div class="hier-line"></div>
+              <div class="hier-fork">
+                <div class="hier-fork-line"></div>
+                <div class="hier-fork-branches">
+                  <div class="hier-node hier-lead">
+                    <div class="hier-icon" style="background:#047857;color:#D1FAE5"><i data-lucide="star"></i></div>
+                    <div class="hier-details">
+                      <strong>Team Lead</strong>
+                      <span class="role-badge role-technician" style="border:2px solid #047857">technician + lead</span>
+                      <p>A technician with extra powers: can assign work within their team, review their team's work orders, and see team-level reports.</p>
+                    </div>
+                  </div>
+                  <div class="hier-node hier-tech">
+                    <div class="hier-icon" style="background:#374151;color:#F3F4F6"><i data-lucide="wrench"></i></div>
+                    <div class="hier-details">
+                      <strong>Technician</strong>
+                      <span class="role-badge role-technician">technician</span>
+                      <p>The boots on the ground. Views assigned work orders, logs time and parts, follows procedures, sends messages. Sees only properties they have access to.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Permission System -->
+        <div class="card" style="margin-bottom:24px">
+          <div class="card-header"><h3>How Permissions Work</h3></div>
+          <div class="card-body">
+            <div class="perm-flow-diagram">
+              <div class="perm-flow-row">
+                <div class="perm-flow-box perm-flow-role">
+                  <i data-lucide="users"></i>
+                  <strong>Role</strong>
+                  <span>admin, manager, or technician</span>
+                </div>
+                <div class="perm-flow-arrow"><i data-lucide="arrow-right"></i></div>
+                <div class="perm-flow-box perm-flow-defaults">
+                  <i data-lucide="list-checks"></i>
+                  <strong>Role Defaults</strong>
+                  <span>Each role has a predefined set of 75 permissions like <code>workorders:create</code> or <code>invoices:approve</code></span>
+                </div>
+              </div>
+              <div class="perm-flow-plus">
+                <i data-lucide="plus-circle"></i>
+              </div>
+              <div class="perm-flow-row">
+                <div class="perm-flow-box perm-flow-override">
+                  <i data-lucide="sliders-horizontal"></i>
+                  <strong>Per-User Overrides</strong>
+                  <span>Admins can grant or revoke individual permissions for any user, on top of their role defaults</span>
+                </div>
+                <div class="perm-flow-arrow"><i data-lucide="arrow-right"></i></div>
+                <div class="perm-flow-box perm-flow-effective">
+                  <i data-lucide="shield-check"></i>
+                  <strong>Effective Permissions</strong>
+                  <span>The final set that determines what a user can see and do — checked on every API request</span>
+                </div>
+              </div>
+              <div class="perm-flow-note">
+                <i data-lucide="lightbulb" style="width:16px;height:16px;flex-shrink:0"></i>
+                <span><strong>Role Templates</strong> let you save a permission configuration and apply it to users in one click — useful for custom roles like "Read-Only Auditor" or "Senior Technician".</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Property Access -->
+        <div class="card" style="margin-bottom:24px">
+          <div class="card-header"><h3>Property Access</h3></div>
+          <div class="card-body">
+            <div class="prop-access-diagram">
+              <div class="prop-access-rule">
+                <div class="prop-access-icon" style="background:#8B5CF615;color:#8B5CF6"><i data-lucide="building-2"></i></div>
+                <div>
+                  <strong>Users only see properties they have access to.</strong>
+                  <p>When you create a property, you automatically get access. Other users must be explicitly granted access — either by an admin in User Management, through a bulk grant, or via invitation.</p>
+                </div>
+              </div>
+              <div class="prop-access-examples">
+                <div class="prop-access-example">
+                  <div class="prop-access-scenario">
+                    <i data-lucide="check-circle" style="color:#22C55E"></i>
+                    <span>You <strong>created</strong> Lakehouse Estate</span>
+                  </div>
+                  <div class="prop-access-result">You can see all its work orders, assets, and data</div>
+                </div>
+                <div class="prop-access-example">
+                  <div class="prop-access-scenario">
+                    <i data-lucide="check-circle" style="color:#22C55E"></i>
+                    <span>Admin <strong>granted you access</strong> to Mountain Lodge</span>
+                  </div>
+                  <div class="prop-access-result">You can see all its work orders, assets, and data</div>
+                </div>
+                <div class="prop-access-example">
+                  <div class="prop-access-scenario">
+                    <i data-lucide="x-circle" style="color:#EF4444"></i>
+                    <span>You have <strong>no access</strong> to Harbor Villa</span>
+                  </div>
+                  <div class="prop-access-result">It doesn't appear in your property list, work orders, or anywhere else</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lifecycle / How Users Join -->
+        <div class="card" style="margin-bottom:24px">
+          <div class="card-header"><h3>How Users Join</h3></div>
+          <div class="card-body">
+            <div class="flow-complete-steps" style="flex-wrap:wrap;gap:16px;justify-content:center">
+              <div class="flow-complete-step">
+                <div class="flow-step-circle" style="background:#3B82F6"><i data-lucide="mail"></i></div>
+                <span>Admin sends invite</span>
+                <small style="color:var(--text-muted);font-size:0.75rem">Picks role & team</small>
+              </div>
+              <div class="flow-complete-arrow"></div>
+              <div class="flow-complete-step">
+                <div class="flow-step-circle" style="background:#F59E0B"><i data-lucide="link"></i></div>
+                <span>User gets invite link</span>
+                <small style="color:var(--text-muted);font-size:0.75rem">7-day expiry</small>
+              </div>
+              <div class="flow-complete-arrow"></div>
+              <div class="flow-complete-step">
+                <div class="flow-step-circle" style="background:#8B5CF6"><i data-lucide="user-plus"></i></div>
+                <span>Sets name & password</span>
+                <small style="color:var(--text-muted);font-size:0.75rem">Role auto-assigned</small>
+              </div>
+              <div class="flow-complete-arrow"></div>
+              <div class="flow-complete-step">
+                <div class="flow-step-circle" style="background:#10B981"><i data-lucide="check"></i></div>
+                <span>Active user</span>
+                <small style="color:var(--text-muted);font-size:0.75rem">Onboarding starts</small>
+              </div>
+            </div>
+            <div class="perm-flow-note" style="margin-top:16px">
+              <i data-lucide="info" style="width:16px;height:16px;flex-shrink:0"></i>
+              <span><strong>User lifecycle:</strong> Invited → Active → Suspended (can't log in, data preserved) → Deactivated (soft-deleted). Admins control transitions from User Management.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Review & Approval Chain -->
+        <div class="card" style="margin-bottom:24px">
+          <div class="card-header"><h3>Review & Approval Chain</h3></div>
+          <div class="card-body">
+            <div class="chain-diagram">
+              <div class="chain-section">
+                <h4 style="margin-bottom:12px;color:var(--text-muted);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em">Work Order Review</h4>
+                <div class="chain-flow">
+                  <div class="chain-step">
+                    <span class="role-badge role-technician">Technician</span>
+                    <small>completes work</small>
+                  </div>
+                  <i data-lucide="arrow-right" style="color:var(--text-muted)"></i>
+                  <div class="chain-step">
+                    <span class="role-badge role-manager">Manager / Lead</span>
+                    <small>reviews & signs off</small>
+                  </div>
+                  <i data-lucide="arrow-right" style="color:var(--text-muted)"></i>
+                  <div class="chain-step chain-step-outcome chain-step-approve">
+                    <i data-lucide="check-circle"></i> Approved
+                  </div>
+                  <span style="color:var(--text-muted);font-size:0.8rem;margin:0 4px">or</span>
+                  <div class="chain-step chain-step-outcome chain-step-rework">
+                    <i data-lucide="rotate-ccw"></i> Rework
+                  </div>
+                </div>
+              </div>
+              <div class="chain-section" style="margin-top:20px">
+                <h4 style="margin-bottom:12px;color:var(--text-muted);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em">Configurable Approvals (POs, Invoices)</h4>
+                <div class="chain-flow">
+                  <div class="chain-step">
+                    <span style="font-weight:600;font-size:0.85rem">Rule triggers</span>
+                    <small>e.g., PO total > $5,000</small>
+                  </div>
+                  <i data-lucide="arrow-right" style="color:var(--text-muted)"></i>
+                  <div class="chain-step">
+                    <span class="role-badge role-manager">Required approver</span>
+                    <small>or their delegate</small>
+                  </div>
+                  <i data-lucide="arrow-right" style="color:var(--text-muted)"></i>
+                  <div class="chain-step chain-step-outcome chain-step-approve">
+                    <i data-lucide="check-circle"></i> Approved
+                  </div>
+                  <span style="color:var(--text-muted);font-size:0.8rem;margin:0 4px">or</span>
+                  <div class="chain-step chain-step-outcome chain-step-reject">
+                    <i data-lucide="x-circle"></i> Rejected
+                  </div>
+                </div>
+              </div>
+              <div class="perm-flow-note" style="margin-top:16px">
+                <i data-lucide="calendar-off" style="width:16px;height:16px;flex-shrink:0"></i>
+                <span><strong>Out of office?</strong> Users can delegate their approval authority to a colleague for a date range. Delegated approvals show up in the delegate's queue automatically.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sidebar Visibility -->
+        <div class="card">
+          <div class="card-header"><h3>What Each Role Sees</h3></div>
+          <div class="card-body">
+            <table class="user-table" style="font-size:0.85rem">
+              <thead>
+                <tr>
+                  <th>Section</th>
+                  <th style="text-align:center"><span class="role-badge role-admin">Admin</span></th>
+                  <th style="text-align:center"><span class="role-badge role-manager">Manager</span></th>
+                  <th style="text-align:center"><span class="role-badge role-technician">Technician</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                ${[
+                  ['Dashboard', true, true, true],
+                  ['Work Orders', true, true, true],
+                  ['Review Queue', true, true, false],
+                  ['Work Requests', true, true, true],
+                  ['Approvals', true, true, false],
+                  ['Properties', true, true, true],
+                  ['Assets', true, true, true],
+                  ['Preventive Maintenance', true, true, true],
+                  ['Procedures', true, true, true],
+                  ['Parts & Inventory', true, true, true],
+                  ['Vendors', true, true, false],
+                  ['Purchase Orders', true, true, false],
+                  ['Invoices', true, true, false],
+                  ['Projects & Bids', true, true, false],
+                  ['Messages', true, true, true],
+                  ['User Management', true, false, false],
+                  ['Teams', true, true, true],
+                  ['Audit Log', true, false, false],
+                  ['Reports', true, true, false],
+                  ['Settings', true, true, false],
+                  ['Integrations', true, false, false],
+                ].map(([section, admin, manager, tech]) => `
+                  <tr>
+                    <td>${section}</td>
+                    <td style="text-align:center">${admin ? '<i data-lucide="check" style="width:16px;height:16px;color:#22C55E"></i>' : '<i data-lucide="minus" style="width:16px;height:16px;color:var(--border)"></i>'}</td>
+                    <td style="text-align:center">${manager ? '<i data-lucide="check" style="width:16px;height:16px;color:#22C55E"></i>' : '<i data-lucide="minus" style="width:16px;height:16px;color:var(--border)"></i>'}</td>
+                    <td style="text-align:center">${tech ? '<i data-lucide="check" style="width:16px;height:16px;color:#22C55E"></i>' : '<i data-lucide="minus" style="width:16px;height:16px;color:var(--border)"></i>'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            <div class="perm-flow-note" style="margin-top:16px">
+              <i data-lucide="sliders-horizontal" style="width:16px;height:16px;flex-shrink:0"></i>
+              <span>These are the <strong>defaults</strong>. Admins can customize any user's permissions with per-user overrides — for example, granting a technician access to Reports, or revoking a manager's access to Invoices.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
   renderReference() {
     const modules = [
       { icon: 'clipboard-list', name: 'Work Orders', color: '#3B82F6', route: '#/workorders',
@@ -485,7 +788,11 @@ const Guide = {
       { icon: 'plug-zap', name: 'Integrations', color: '#10B981', route: '#/integrations',
         when: 'Connecting to Bill.com or QuickBooks',
         what: 'Configure OAuth credentials, sync GL accounts from QuickBooks, monitor sync activity, and manage the connection between your systems.',
-        creates: 'Connects: Bill.com (payments), QuickBooks (accounting)' }
+        creates: 'Connects: Bill.com (payments), QuickBooks (accounting)' },
+      { icon: 'qr-code', name: 'QR Codes & NFC', color: '#0EA5E9', route: '#/assets',
+        when: 'Making physical items scannable',
+        what: 'Print QR labels for assets, parts, locations, and procedures. Scan with any phone to jump directly to that item. Batch print for entire properties.',
+        creates: 'Links to: Assets, Parts, Locations, Procedures, PM Schedules' }
     ];
 
     return `

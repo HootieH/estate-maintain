@@ -2,6 +2,16 @@ const Login = {
   render() {
     const view = document.getElementById('login-view');
     const passkeySupported = window.PublicKeyCredential !== undefined;
+
+    // Check for invite token in URL
+    const params = new URLSearchParams(window.location.search);
+    const inviteToken = params.get('token');
+    if (inviteToken) {
+      // Redirect to invite page
+      window.location.href = '/invite?token=' + encodeURIComponent(inviteToken);
+      return;
+    }
+
     view.innerHTML = `
       <div class="login-container">
         <div class="login-card">
@@ -32,22 +42,48 @@ const Login = {
             <div id="login-error" class="form-error" style="display:none"></div>
             <button type="submit" class="btn btn-primary btn-block" id="login-submit">Sign In</button>
           </form>
-          <form id="register-form" style="display:none" onsubmit="Login.handleRegister(event)">
-            <div class="form-group">
-              <label for="register-name">Full Name</label>
-              <input type="text" id="register-name" class="form-control" placeholder="John Smith" required>
+
+          <!-- Register: invite code first -->
+          <div id="register-form" style="display:none">
+            <div id="register-invite-step">
+              <p class="text-muted" style="margin-bottom:16px;font-size:0.9rem">Have an invite link or code? Paste it below to join an existing estate.</p>
+              <div class="form-group">
+                <label for="register-invite-code">Invite Code or Link</label>
+                <input type="text" id="register-invite-code" class="form-control" placeholder="Paste invite link or code">
+              </div>
+              <button class="btn btn-primary btn-block" onclick="Login.validateInvite()">Continue with Invite</button>
+              <div class="login-divider" style="margin:20px 0"><span>or</span></div>
+              <button class="btn btn-secondary btn-block" onclick="Login.showNewAdminForm()">
+                <i data-lucide="plus"></i> Create a New Estate
+              </button>
             </div>
-            <div class="form-group">
-              <label for="register-email">Email</label>
-              <input type="email" id="register-email" class="form-control" placeholder="you@example.com" required>
-            </div>
-            <div class="form-group">
-              <label for="register-password">Password</label>
-              <input type="password" id="register-password" class="form-control" placeholder="Min 6 characters" required minlength="6">
-            </div>
-            <div id="register-error" class="form-error" style="display:none"></div>
-            <button type="submit" class="btn btn-primary btn-block" id="register-submit">Create Account</button>
-          </form>
+
+            <!-- New admin registration (hidden until clicked) -->
+            <form id="register-admin-form" style="display:none" onsubmit="Login.handleRegister(event)">
+              <div class="register-admin-warning">
+                <i data-lucide="alert-triangle"></i>
+                <div>
+                  <strong>You are creating a new estate account.</strong>
+                  <p>This makes you the administrator. You can invite your team after setup.</p>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="register-name">Full Name</label>
+                <input type="text" id="register-name" class="form-control" placeholder="John Smith" required>
+              </div>
+              <div class="form-group">
+                <label for="register-email">Email</label>
+                <input type="email" id="register-email" class="form-control" placeholder="you@example.com" required>
+              </div>
+              <div class="form-group">
+                <label for="register-password">Password</label>
+                <input type="password" id="register-password" class="form-control" placeholder="Min 6 characters" required minlength="6">
+              </div>
+              <div id="register-error" class="form-error" style="display:none"></div>
+              <button type="submit" class="btn btn-primary btn-block" id="register-submit">Create Estate Account</button>
+              <button type="button" class="btn btn-secondary btn-block" style="margin-top:8px" onclick="Login.showInviteStep()">Back</button>
+            </form>
+          </div>
         </div>
       </div>
     `;
@@ -60,8 +96,36 @@ const Login = {
     });
     document.getElementById('login-form').style.display = tab === 'login' ? 'block' : 'none';
     document.getElementById('register-form').style.display = tab === 'register' ? 'block' : 'none';
+    if (tab === 'register') {
+      this.showInviteStep();
+    }
     document.getElementById('login-error').style.display = 'none';
-    document.getElementById('register-error').style.display = 'none';
+  },
+
+  showInviteStep() {
+    document.getElementById('register-invite-step').style.display = 'block';
+    document.getElementById('register-admin-form').style.display = 'none';
+  },
+
+  showNewAdminForm() {
+    document.getElementById('register-invite-step').style.display = 'none';
+    document.getElementById('register-admin-form').style.display = 'block';
+  },
+
+  validateInvite() {
+    const input = document.getElementById('register-invite-code').value.trim();
+    if (!input) return;
+
+    // Extract token from URL or use raw code
+    let token = input;
+    try {
+      const url = new URL(input);
+      token = url.searchParams.get('token') || input;
+    } catch (_) {
+      // Not a URL, use as-is
+    }
+
+    window.location.href = '/invite?token=' + encodeURIComponent(token);
   },
 
   async handleLogin(e) {
@@ -105,7 +169,6 @@ const Login = {
       });
       API.setToken(data.token);
       API.setUser(data.user);
-      // Flag as new registration so onboarding triggers
       localStorage.setItem('just_registered', '1');
       App.showMain();
     } catch (err) {
@@ -113,7 +176,7 @@ const Login = {
       errorEl.style.display = 'block';
     } finally {
       btn.disabled = false;
-      btn.textContent = 'Create Account';
+      btn.textContent = 'Create Estate Account';
     }
   },
 
@@ -126,13 +189,8 @@ const Login = {
     lucide.createIcons();
 
     try {
-      // Get authentication options from server
       const options = await API.post('/passkeys/login-options', {});
-
-      // Prompt user's authenticator
       const credential = await SimpleWebAuthnBrowser.startAuthentication({ optionsJSON: options });
-
-      // Verify with server — pass challenge back so server can look it up
       const data = await API.post('/passkeys/login-verify', { credential, challenge: options.challenge });
 
       API.setToken(data.token);
@@ -140,7 +198,7 @@ const Login = {
       App.showMain();
     } catch (err) {
       if (err.name === 'NotAllowedError') {
-        // User cancelled the passkey prompt
+        // User cancelled
       } else {
         errorEl.textContent = err.message || 'Passkey authentication failed';
         errorEl.style.display = 'block';

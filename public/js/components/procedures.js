@@ -117,6 +117,7 @@ const Procedures = {
             ${proc.category ? `<span class="badge">${proc.category}</span>` : ''}
           </div>
           <div class="page-header-actions">
+            ${QRCodes.button('procedure', params.id, proc.title, proc.category || '')}
             <button class="btn btn-secondary" onclick="Procedures.showAttachModal('${params.id}')">
               <i data-lucide="link"></i> Attach to Work Order
             </button>
